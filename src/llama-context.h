@@ -14,6 +14,7 @@
 
 struct llama_model;
 struct llama_kv_cache;
+struct sparkInfer_cache_manager;
 
 class llama_io_read_i;
 class llama_io_write_i;
@@ -213,6 +214,9 @@ private:
     llama_cross cross; // TODO: tmp for handling cross-attention - need something better probably
 
     std::unique_ptr<llama_memory_i> memory;
+
+    // sparkinfer
+    sparkInfer_cache_manager * spif_cache = nullptr;
 
     // decode output (2-dimensional array: [n_outputs][n_vocab])
     size_t  logits_size = 0; // capacity (of floats) for logits

@@ -358,7 +358,7 @@ struct llama_model {
     uint64_t layer_group_size = 0;
     std::vector<ggml_backend_buffer_t> split_idx_allocated_buffers;
 
-    struct sparkInfer_neuron_cache_manager* neuron_cache_manager = nullptr;
+    struct sparkInfer_cache_manager * spif_cache = nullptr;
     // ------ sparkinfer ------
 
     struct ggml_tensor * tok_embd   = nullptr;

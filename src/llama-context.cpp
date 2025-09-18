@@ -257,6 +257,10 @@ llama_context::llama_context(
         }
     }
 
+    if (!hparams.vocab_only && llama_use_sparkinfer(&model)) {
+        spif_cache = model.spif_cache; // GTODO: use unique_ptr??
+    }
+
     // reserve worst-case graph
     if (!hparams.vocab_only && memory) {
         const uint32_t n_seqs = 1; // TODO: worst-case number of sequences
@@ -1275,6 +1279,7 @@ llm_graph_result_ptr llama_context::graph_build(
                 /*.cross       =*/ &cross,
                 /*.n_outputs   =*/ n_outputs,
                 /*.cb          =*/ graph_get_cb(),
+                /*.spif_cache  =*/ spif_cache,
             }, gf, gtype);
 }
 

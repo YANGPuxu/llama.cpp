@@ -9,7 +9,7 @@ sparkInfer_layer_cache::~sparkInfer_layer_cache() {
     }
 }
 
-bool sparkInfer_layer_cache:: init(int layer_idx, llama_model& model, llama_layer& layer, ggml_backend_t backend, const std::vector<int64_t>& initial_gpu_neuron_indices) {
+bool sparkInfer_layer_cache:: init(int layer_idx, llama_model& model, llama_layer& layer, ggml_backend_t backend, const std::vector<int64_t>& initial_gpu_neu_idx) {
     // init
     this->gpu_backend = backend;
     this->cpu_backend = ggml_backend_cpu_init();
@@ -24,7 +24,7 @@ bool sparkInfer_layer_cache:: init(int layer_idx, llama_model& model, llama_laye
     this->layer_neuron_count = model.layer_neuron_count; // 每层神经元总数
     this->layer_group_size = model.layer_group_size; // 每层分组大小
     this->layer_group_count = model.layer_group_count; // 每层分组数量
-    this->neuron_cache_capacity = initial_gpu_neuron_indices.size();
+    this->neuron_cache_capacity = initial_gpu_neu_idx.size();
     if (this->neuron_cache_capacity == 0) return true; // 无需卸载
 
     ffn_gpu_neu_idx = layer.ffn_gpu_neu_idx;
@@ -133,14 +133,14 @@ bool sparkInfer_layer_cache:: init(int layer_idx, llama_model& model, llama_laye
         }
     };
 
-    if(has_gate) batch_copy_neurons(cpu_ffn_gate, gpu_ffn_gate_cache, initial_gpu_neuron_indices, full_gpu);
-    batch_copy_neurons(cpu_ffn_up, gpu_ffn_up_cache, initial_gpu_neuron_indices, full_gpu);
-    batch_copy_neurons(cpu_ffn_down_t, gpu_ffn_down_t_cache, initial_gpu_neuron_indices, full_gpu);
+    if(has_gate) batch_copy_neurons(cpu_ffn_gate, gpu_ffn_gate_cache, initial_gpu_neu_idx, full_gpu);
+    batch_copy_neurons(cpu_ffn_up, gpu_ffn_up_cache, initial_gpu_neu_idx, full_gpu);
+    batch_copy_neurons(cpu_ffn_down_t, gpu_ffn_down_t_cache, initial_gpu_neu_idx, full_gpu);
 
     // 更新元数据
     offloaded_bytes += ggml_nbytes(gpu_ffn_up_cache) * (has_gate ? 3 : 2); // 每个神经元有3个矩阵
-    for (size_t i = 0; i < initial_gpu_neuron_indices.size(); ++i) {
-        int64_t neuron_idx = initial_gpu_neuron_indices[i];
+    for (size_t i = 0; i < initial_gpu_neu_idx.size(); ++i) {
+        int64_t neuron_idx = initial_gpu_neu_idx[i];
         int64_t slot_idx = i;
         update_metadata(neuron_idx, slot_idx);
     }
@@ -224,13 +224,11 @@ void sparkInfer_layer_cache:: copy_neuron_to_gpu_slot(int64_t neuron_idx, int64_
 void sparkInfer_layer_cache:: update_metadata(int64_t neuron_idx, int64_t slot_idx) {
     neuron_to_slot_map[neuron_idx] = slot_idx;
     slot_to_neuron_map[slot_idx] = neuron_idx;
-    lru_tracker.push_front(neuron_idx);
-    lru_map[neuron_idx] = lru_tracker.begin();
 }
 
 
 
-bool sparkInfer_neuron_cache_manager:: init(llama_model &p_model, ggml_backend_t gpu_backend) {
+bool sparkInfer_cache_manager:: init(llama_model &p_model, ggml_backend_t gpu_backend) {
     this->model = &p_model;
     const int n_layers = model->hparams.n_layer;
     layer_caches.resize(n_layers);
@@ -247,13 +245,13 @@ bool sparkInfer_neuron_cache_manager:: init(llama_model &p_model, ggml_backend_t
         }
 
         // 从ffn_gpu_neu_idx读取需要加载的神经元
-        struct ggml_tensor* initial_indices_tensor = layer.ffn_gpu_neu_idx;
-        std::vector<int64_t> initial_indices(initial_indices_tensor->ne[0]);
+        struct ggml_tensor* initial_gpu_neu_idx = layer.ffn_gpu_neu_idx;
+        std::vector<int64_t> gpu_neu_idx_vec(initial_gpu_neu_idx->ne[0]);
         
         // 注意：这里需要从设备或主机内存中获取数据 TAG
-        ggml_backend_tensor_get(initial_indices_tensor, initial_indices.data(), 0, ggml_nbytes(initial_indices_tensor));
+        ggml_backend_tensor_get(initial_gpu_neu_idx, gpu_neu_idx_vec.data(), 0, ggml_nbytes(initial_gpu_neu_idx));
         
-        if (!layer_caches[i].init(i ,p_model, layer, gpu_backend, initial_indices)) {
+        if (!layer_caches[i].init(i ,p_model, layer, gpu_backend, gpu_neu_idx_vec)) {
             LLAMA_LOG_ERROR("%s: failed to initialize cache for layer %d\n", __func__, i);
             throw std::runtime_error("Failed to initialize layer cache");
         }
@@ -281,7 +279,7 @@ bool sparkInfer_neuron_cache_manager:: init(llama_model &p_model, ggml_backend_t
     return true;
 }
 
-void sparkInfer_neuron_cache_manager:: prepare_hot_neurons(int layer_idx, const std::vector<int64_t>& required_neuron_indices, std::vector<int64_t>& out_gpu_slot_indices) {
+void sparkInfer_cache_manager:: prepare_hot_neurons(int layer_idx, const std::vector<int64_t>& required_neuron_indices, std::vector<int64_t>& out_gpu_slot_indices) {
     if (layer_caches[layer_idx].neuron_cache_capacity == 0) return;
 
     out_gpu_slot_indices.resize(required_neuron_indices.size());
@@ -554,12 +552,12 @@ void debug_print_tensor_i64_to_file(FILE* log_file, const struct ggml_tensor* te
     }
 }
 
-sparkInfer_neuron_cache_manager* sparkinfer_init_and_manage_ffn_cache(struct llama_model* model, ggml_backend_t gpu_backend) {
+sparkInfer_cache_manager* sparkinfer_init_and_manage_ffn_cache(struct llama_model* model, ggml_backend_t gpu_backend) {
     if (!model || !gpu_backend) {
         throw std::invalid_argument("sparkinfer_init_and_manage_ffn_cache: model or gpu_backend is null");
     }
 
-    auto cache_manager = new sparkInfer_neuron_cache_manager();
+    auto cache_manager = new sparkInfer_cache_manager(); //GTODO: use unique_ptr?
     if (!cache_manager->init(*model, gpu_backend)) {
         throw std::runtime_error("sparkinfer_init_and_manage_ffn_cache: failed to initialize cache manager");
     }
@@ -644,14 +642,15 @@ size_t sparkinfer_load_gpu_split_and_offload_weight(llama_model_loader & ml, lla
         fprintf(stderr, "No GPU backend found\n");
         return false;
     }
-    sparkInfer_neuron_cache_manager* neuron_cache_manager = sparkinfer_init_and_manage_ffn_cache(&model, gpu_backend);
-    if (!neuron_cache_manager) {
+    sparkInfer_cache_manager* spif_cache = sparkinfer_init_and_manage_ffn_cache(&model, gpu_backend);
+    if (!spif_cache) {
         throw std::runtime_error("Failed to initialize neuron cache manager");
     }
 
-    model.neuron_cache_manager = neuron_cache_manager;
-    size_t total_offloaded_bytes = neuron_cache_manager->total_offloaded_bytes;
+    model.spif_cache = spif_cache;
+    size_t total_offloaded_bytes = spif_cache->total_offloaded_bytes;
     LLAMA_LOG_INFO("%s: offloaded %.2f MiB of FFN weights to GPU\n", __func__, total_offloaded_bytes / 1024.0 / 1024.0);
 
     return total_offloaded_bytes;
 }
+

@@ -1,3 +1,5 @@
+#pragma once
+
  #include "llama-model.h"
  #include "llama-impl.h"
  #include "llama-model-loader.h"
@@ -33,9 +35,9 @@ struct sparkInfer_layer_cache {
     ggml_backend_t cpu_backend = nullptr;
 
     // 指向CPU上的完整FFN权重张量（数据源）
-    struct ggml_tensor* cpu_ffn_gate = nullptr;
-    struct ggml_tensor* cpu_ffn_up   = nullptr;
-    struct ggml_tensor* cpu_ffn_down_t = nullptr;
+    struct ggml_tensor * cpu_ffn_gate = nullptr;
+    struct ggml_tensor * cpu_ffn_up   = nullptr;
+    struct ggml_tensor * cpu_ffn_down_t = nullptr;
 
     // offloaded ffn neuron bufferr
     ggml_backend_buffer_t gpu_weights_buffer = nullptr;
@@ -84,7 +86,7 @@ struct sparkInfer_layer_cache {
      * @param initial_gpu_neuron_indices 初始需要加载到GPU的神经元原始索引列表。
      * @return true 如果初始化成功。
      */
-    bool init(int layer_idx, llama_model& model, llama_layer& layer, ggml_backend_t backend, const std::vector<int64_t>& initial_gpu_neuron_indices);
+    bool init(int layer_idx, llama_model& model, llama_layer& layer, ggml_backend_t backend, const std::vector<int64_t>& initial_gpu_neu_idx);
 
 
     /**
@@ -112,7 +114,7 @@ private:
  * @brief 全局神经元缓存管理器，管理模型中所有层的缓存。
  *
  */
-struct sparkInfer_neuron_cache_manager {
+struct sparkInfer_cache_manager {
     std::vector<sparkInfer_layer_cache> layer_caches;
     llama_model *model = nullptr;
     size_t total_offloaded_bytes=0;
@@ -172,7 +174,7 @@ private:
 
 void debug_print_tensor_i64_to_file(FILE* log_file, const struct ggml_tensor* tensor);
 
-sparkInfer_neuron_cache_manager* sparkinfer_init_and_manage_ffn_cache(struct llama_model* model, ggml_backend_t gpu_backend);
+sparkInfer_cache_manager* sparkinfer_init_and_manage_ffn_cache(struct llama_model* model, ggml_backend_t gpu_backend);
 
 static bool sparkinfer_load_gpu_split_from_split_file(llama_model & model, std::string split_path, size_t vram_allocatable_bytes);
 

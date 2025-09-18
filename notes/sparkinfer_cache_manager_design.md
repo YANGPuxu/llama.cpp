@@ -1,6 +1,6 @@
 # Sparkinfer Cache Manager
 
-`sparkinfer_cache_manager` 是 `sparkinfer inference` 中的类，实现在以下文件中：
+`sparkInfer_cache_manager` 是 `sparkinfer inference` 中的类，实现在以下文件中：
 - `./src/llama-sparkinfer.h`
 - `./src/llama-sparkinfer.cpp`
 
@@ -14,7 +14,7 @@
     按照 `gpu_neu_idx` 把 CPU 上的神经元加载到 GPU 上，更新 `spif_cache` 中的 GPU 张量指针  
     **[TODO]**:  
     - `lpt` 之前在 `llama-model.cpp` 中实现了一个 `sparkInfer_layer_cache`，用于加载阶段的神经元加载到 GPU 上。  
-    - 需要将此类与 `sparkinfer_cache_manager` 合并，共同放在 `llama-sparkinfer.h/cpp` 中。
+    - 需要将此类与 `sparkInfer_cache_manager` 合并，共同放在 `llama-sparkinfer.h/cpp` 中。
 
 2. **跨 decodes 张量管理**  
     负责保存跨 decodes 的张量，在构建计算图时能够调用函数获取这些张量。
@@ -29,8 +29,8 @@
     - 具体看 kv_cache_implement.md 
 
 ## 内部成员
-`sparkinfer_cache_manager` 包含一个 `vector` 列表 `layer_caches`，其中存储 `layer_cache` 类。  
-`layer_cache` 类用于保存 cache 中需要动态变化的、跨 decodes 的张量：
+`sparkInfer_cache_manager` 包含一个 `vector` 列表 `layer_caches`，其中存储 `sparkInfer_layer_cache` 类。  
+`sparkInfer_layer_cache` 类用于保存 cache 中需要动态变化的、跨 decodes 的张量：
 1. GPU 上需要动态调整的神经元组：`ffn_gpu_up`，`ffn_gpu_gate`，`ffn_gpu_down_t`
 2. 指导 GPU 神经元映射、reload 的张量：`gpu_neu_idx/mask`，`DFR_score`
 3. 一些 hyperparameter (`n_layers`, `dfr_decay`...)
@@ -38,17 +38,17 @@
 
 ## 归属与初始化
 目前的设计思路：
-- `sparkinfer_cache_manager` 作为 `struct llama_context` 的成员（`llama_context` 是一个单例，跨 decodes 存在）。
+- `sparkInfer_cache_manager` 作为 `struct llama_context` 的成员（`llama_context` 是一个单例，跨 decodes 存在）。
 - 在 `llama_context` 初始化时初始化，与 `kv-cache` 同级。  
 ~~**[TODO]**:~~
 ~~- `lpt` 加载阶段的类是在 model 加载时调用，早于 `llama_context` 初始化~~
-~~只能在 model 加载阶段就初始化 `sparkinfer_cache_manager` 然后在 `llama_context` 初始化的时候再放进`llama_context`~~
+~~只能在 model 加载阶段就初始化 `sparkInfer_cache_manager` 然后在 `llama_context` 初始化的时候再放进`llama_context`~~
 
 
 
 ## 9.16 [TODO]
 
-### 任务 1: 整理 sparse loading 加载阶段的类(在模型加载过程中)
+### [done]任务 1: 整理 sparse loading 加载阶段的类(在模型加载过程中)
 - 将这个类迁移到 `llama-sparkinfer.h/cpp` 文件中。
 - 不添加额外功能，仅对命名进行规范化。
 - 确保迁移后运行结果与当前一致。
@@ -60,9 +60,11 @@
     - ...
     - 直接赋值指针??
 
-### 任务 2: 初始化与整合
-- 任务 1 完成了在模型加载阶段初始化 `sparkinfer_cache_manager`。
-- 在 `llama-context` 初始化时，将已初始化的 `sparkinfer_cache_manager` 实例保存到 `llama-context` 中。
+### [done]任务 2: 初始化与整合
+- 任务 1 完成了在模型加载阶段初始化 `sparkInfer_cache_manager`。
+- 在 `llama-context` 初始化时，将已初始化的 `sparkInfer_cache_manager` 实例保存到 `llama-context` 中。
+- 我们不应该在 `sparkInfer_cache_manager` 类里面保存 `model`？？然后在初始化 `sparkInfer_cache_manager` 
+- 后把其保存到 `model` 里面，后续用 `model` 里的 `spif_cache` 初始化 `llama-context` 里面的 s`parkinfer_cache_manager` 成员
 - **补充说明**:  
     在 `main` 函数中，模型和上下文的初始化顺序如下：
     ```cpp
@@ -74,4 +76,4 @@
 
 ### 任务 3: 构建计算图
 - 在 `build-graph` 过程中，所需的全局 `ggml_tensor` 可以从 `spif_cache` 中获取，用于构建 `reload` 的计算图。
-- 或者，直接将 'build_reload' 函数写入 `sparkinfer_cache_manager` 类中，作为成员函数调用。
+- 或者，直接将 'build_reload' 函数写入 `sparkInfer_cache_manager` 类中，作为成员函数调用。

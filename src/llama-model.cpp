@@ -5234,6 +5234,7 @@ struct llm_build_llama : public llm_graph_context {
         const int64_t n_embd_head = hparams.n_embd_head_v;
         
         bool use_sparkinfer = llama_use_sparkinfer(&model);
+        if (use_sparkinfer) GGML_ASSERT(params.spif_cache != nullptr && "spif_cache must be provided when using sparkinfer");
 
         GGML_ASSERT(n_embd_head == hparams.n_embd_head_k);
         GGML_ASSERT(n_embd_head == hparams.n_rot);

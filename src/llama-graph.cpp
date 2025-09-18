@@ -5,6 +5,7 @@
 #include "llama-cparams.h"
 #include "llama-kv-cache.h"
 #include "llama-model.h"
+#include "llama-sparkinfer.h"
 
 #include <cassert>
 #include <cmath>
@@ -452,7 +453,8 @@ llm_graph_context::llm_graph_context(const llm_graph_params & params) :
     memory           (params.memory),
     cross            (params.cross),
     cb_func          (params.cb),
-    res              (std::make_unique<llm_graph_result>())
+    res              (std::make_unique<llm_graph_result>()),
+    spif_cache       (params.spif_cache)
     {
         runtime_buf = std::make_unique<llama_runtime_buffer>(static_cast<int>(n_layer));
     }
@@ -871,6 +873,8 @@ ggml_tensor * llm_graph_context::build_sparse_ffn(
         const struct llama_layer *L_next = il == (n_layer - 1) ? nullptr : &(model->layers[il+1]);
         llama_runtime_layer & R = runtime_buf->layers[il];
         llama_runtime_layer * R_next = il == (n_layer - 1) ? nullptr : &runtime_buf->layers[il+1];
+
+        // sparkInfer_layer_cache spif_layer = spif_cache->layer_caches[il];
 
         // build sparse_idx for CURRENT layer
         bool full_gpu      = (L->gpu_offload_ratio >= 1.0f);

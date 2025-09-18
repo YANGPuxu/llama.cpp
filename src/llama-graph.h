@@ -16,6 +16,7 @@ struct ggml_tensor;
 
 struct llama_ubatch;
 struct llama_cparams;
+struct sparkInfer_cache_manager;
 
 class llama_memory_i;
 class llama_kv_cache_unified;
@@ -393,6 +394,8 @@ struct llm_graph_params {
     int32_t n_outputs;
 
     const llm_graph_cb & cb;
+
+    sparkInfer_cache_manager * spif_cache = nullptr;
 };
 
 struct llama_runtime_layer {
@@ -466,8 +469,10 @@ struct llm_graph_context {
     void cb(ggml_tensor * cur, const char * name, int il) const;
 
     // this is a buffer that can be used to store runtime data (in a single decode lifetime!!)), such as sparse_idx etc.
-    // GTODO[reload]: so we need another stuff to manage tensors that are persistent across multiple decodes (DFR_score, gpu_neu_idx/mask), this is important
     std::unique_ptr<llama_runtime_buffer> runtime_buf;
+    
+    // sparkinfer
+    sparkInfer_cache_manager * spif_cache = nullptr;
 
     //
     // common
