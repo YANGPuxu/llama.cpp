@@ -874,7 +874,7 @@ ggml_tensor * llm_graph_context::build_sparse_ffn(
         llama_runtime_layer & R = runtime_buf->layers[il];
         llama_runtime_layer * R_next = il == (n_layer - 1) ? nullptr : &runtime_buf->layers[il+1];
 
-        // sparkInfer_layer_cache spif_layer = spif_cache->layer_caches[il];
+        sparkInfer_layer_cache * spif_layer = spif_cache->layer_caches[il];
 
         // build sparse_idx for CURRENT layer
         bool full_gpu      = (L->gpu_offload_ratio >= 1.0f);
@@ -909,12 +909,22 @@ ggml_tensor * llm_graph_context::build_sparse_ffn(
         ggml_tensor * gate_b = L->ffn_gate_b;
         ggml_tensor * down_b = L->ffn_down_b;
 
+        // seems that we can also use dynamic tensors from llama_model?
         ggml_tensor * gpu_up   = L->ffn_gpu_up;
         ggml_tensor * gpu_gate = L->ffn_gpu_gate;
         ggml_tensor * gpu_down = L->ffn_gpu_down_t;
 
-        ggml_tensor * gpu_neu_idx  = L->ffn_gpu_neu_idx;
-        ggml_tensor * gpu_neu_mask = L->ffn_gpu_neu_mask;
+        // ggml_tensor * gpu_up   = spif_layer->gpu_ffn_up_cache;
+        // ggml_tensor * gpu_gate = spif_layer->gpu_ffn_gate_cache;
+        // ggml_tensor * gpu_down = spif_layer->gpu_ffn_down_t_cache;
+
+        ggml_tensor * gpu_neu_idx  = spif_layer->ffn_gpu_neu_idx;
+        ggml_tensor * gpu_neu_mask = spif_layer->ffn_gpu_neu_mask;
+
+        ggml_tensor * DFR_score    = spif_layer->dfr_score;
+        float       decay_ratio    = spif_layer->decay_ratio;
+
+        if(!full_gpu) GGML_ASSERT(DFR_score);
 
         llm_ffn_gate_type type_gate = model->arch == LLM_ARCH_PRO_SPARSE_LLAMA ? LLM_FFN_PAR : LLM_FFN_NOGATE;
         llm_ffn_op_type   act_type  = LLM_FFN_RELU;

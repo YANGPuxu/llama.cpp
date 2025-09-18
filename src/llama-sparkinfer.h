@@ -61,21 +61,24 @@ struct sparkInfer_layer_cache {
     uint64_t layer_group_count = 0; // 每层分组总量
     uint64_t layer_group_size = 0; // 每层分组大小
     
-    // 跟踪: 原始神经元索引 -> GPU缓存槽位索引
-    std::unordered_map<int64_t, int64_t> neuron_to_slot_map;
-    
-    // 跟踪: GPU缓存槽位索引 -> 原始神经元索引
-    std::vector<int64_t> slot_to_neuron_map;
+    // mappings
+    std::unordered_map<int64_t, int64_t> neuron_to_slot_map; // 原始神经元索引 -> GPU缓存槽位索引
+    std::vector<int64_t> slot_to_neuron_map; // GPU缓存槽位索引 -> 原始神经元索引
 
-    // 实现LRU(最近最少使用)的替换策略，存储的是【原始神经元索引】
+    // 实现LRU(最近最少使用)的替换策略，存储的是【原始神经元索引】, ofc we dont use lru, remove later
     std::list<int64_t> lru_tracker;
     std::unordered_map<int64_t, std::list<int64_t>::iterator> lru_map;
+
+    // DFR 
+    struct ggml_tensor* dfr_score = nullptr;
+    float decay_ratio = 0.9f;
 
     // 临时的ggml上下文，用于创建视图等临时张量
     struct ggml_context* tmp_ctx = nullptr;
 
     size_t offloaded_bytes=0;
 
+    sparkInfer_layer_cache() = default;
     ~sparkInfer_layer_cache();
 
     /**
@@ -106,7 +109,7 @@ private:
     /**
      * @brief 更新缓存的元数据。
      */
-    void update_metadata(int64_t neuron_idx, int64_t slot_idx);
+    void update_mappings(int64_t neuron_idx, int64_t slot_idx);
 };
 
 
@@ -115,7 +118,7 @@ private:
  *
  */
 struct sparkInfer_cache_manager {
-    std::vector<sparkInfer_layer_cache> layer_caches;
+    std::vector<sparkInfer_layer_cache*> layer_caches;
     llama_model *model = nullptr;
     size_t total_offloaded_bytes=0;
 
