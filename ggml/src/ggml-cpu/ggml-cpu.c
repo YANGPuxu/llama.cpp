@@ -2614,18 +2614,21 @@ static void reload_weights(
         const struct ggml_compute_params * params,
               struct ggml_tensor * tensor) 
 {
-          struct ggml_tensor * weights     = tensor->src[0];
-    const struct ggml_tensor * sparse_idx  = tensor->src[1];
-          struct ggml_tensor * gpu_neu_idx = tensor->src[2];
-          struct ggml_tensor * DFR_score   = tensor->src[3]; // GTODO[reload]: we dont have DFR_score now
+          struct ggml_tensor * gpu_weights     = tensor->src[0];
+          struct ggml_tensor * cpu_weights     = tensor->src[1];
+    const struct ggml_tensor * sparse_idx      = tensor->src[2];
+          struct ggml_tensor * gpu_neu_idx     = tensor->src[3];
+          struct ggml_tensor * gpu_neu_mask    = tensor->src[4];
+          struct ggml_tensor * DFR_score       = tensor->src[5];
+          // and other mappings
 
-    // GTODO[reload]: check weights is on GPU, while others are on CPU 
-    //        however we do not have such backend-checking API in ggml_tensor now
-    //        bring back backend_type enum in ggml_tensor like the old version??
-    // GGML_ASSERT(weigths->backend == GGML_BACKEND_GPU);
-    // GGML_ASSERT(sparse_idx->backend == GGML_BACKEND_CPU);
-    // GGML_ASSERT(gpu_neu_idx->backend == GGML_BACKEND_GPU);
-    // GGML_ASSERT(DFR_score->backend == GGML_BACKEND_CPU);
+    // // GTODO[reload]: check weights is on GPU, while others are on CPU 
+    GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_weights->buffer), "CUDA") != NULL);
+    GGML_ASSERT(strstr(ggml_backend_buffer_name(cpu_weights->buffer), "CPU") != NULL);
+    // GGML_ASSERT(strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CPU") != NULL);  // [GTODO]: we fail this, why??? why this on CUDA
+    // GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_neu_idx->buffer), "CPU") != NULL);
+    // GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_neu_mask->buffer), "CPU") != NULL);
+    // GGML_ASSERT(strstr(ggml_backend_buffer_name(DFR_score->buffer), "CPU") != NULL);
 
     // GTODO[reload]: here is the real implementation of reloading weights, updating DFR_score and gpu_neu_idx
 }

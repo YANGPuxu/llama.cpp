@@ -43,37 +43,3 @@
 ~~**[TODO]**:~~
 ~~- `lpt` 加载阶段的类是在 model 加载时调用，早于 `llama_context` 初始化~~
 ~~只能在 model 加载阶段就初始化 `sparkInfer_cache_manager` 然后在 `llama_context` 初始化的时候再放进`llama_context`~~
-
-
-
-## 9.16 [TODO]
-
-### [done]任务 1: 整理 sparse loading 加载阶段的类(在模型加载过程中)
-- 将这个类迁移到 `llama-sparkinfer.h/cpp` 文件中。
-- 不添加额外功能，仅对命名进行规范化。
-- 确保迁移后运行结果与当前一致。
-- 对后续的功能完善初始化函数，要求将 `llama-model` 中的以下全局张量交由 `spif_cache` 统一管理：
-    - `ffn_gpu_up`
-    - `ffn_gpu_gate`
-    - `ffn_gpu_down_t`
-    - `gpu_neu_idx/mask`
-    - ...
-    - 直接赋值指针??
-
-### [done]任务 2: 初始化与整合
-- 任务 1 完成了在模型加载阶段初始化 `sparkInfer_cache_manager`。
-- 在 `llama-context` 初始化时，将已初始化的 `sparkInfer_cache_manager` 实例保存到 `llama-context` 中。
-- 我们不应该在 `sparkInfer_cache_manager` 类里面保存 `model`？？然后在初始化 `sparkInfer_cache_manager` 
-- 后把其保存到 `model` 里面，后续用 `model` 里的 `spif_cache` 初始化 `llama-context` 里面的 s`parkinfer_cache_manager` 成员
-- **补充说明**:  
-    在 `main` 函数中，模型和上下文的初始化顺序如下：
-    ```cpp
-    llama_model * model = llama_model_load_from_file(model_path.c_str(), model_params);
-    ...
-    llama_context * ctx = llama_init_from_model(model, ctx_params);
-    ```
-    这样，在当前 `reload` 分支中，从 `llama-context` 初始化到传递到 `build_graph` 的路径，仅需修改 `llama-context` 初始化部分。
-
-### 任务 3: 构建计算图
-- 在 `build-graph` 过程中，所需的全局 `ggml_tensor` 可以从 `spif_cache` 中获取，用于构建 `reload` 的计算图。
-- 或者，直接将 'build_reload' 函数写入 `sparkInfer_cache_manager` 类中，作为成员函数调用。

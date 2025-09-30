@@ -516,8 +516,16 @@ struct llm_graph_context {
        llm_ffn_gate_type   type_gate,
                      int   il) const;
 
+    ggml_tensor * build_reload(
+                ggml_context * ctx, 
+                ggml_cgraph * gf,
+                struct sparkInfer_layer_cache * spif_cache, 
+                ggml_tensor * sparse_idx, 
+                const int il) const;
+
     ggml_tensor * build_sparse_ffn(
                const llama_model * model,
+                     ggml_cgraph * gf,
                      ggml_tensor * input,
                              int   il) const;
 

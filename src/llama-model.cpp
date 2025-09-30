@@ -5334,7 +5334,7 @@ struct llm_build_llama : public llm_graph_context {
                 cb(cur, "ffn_norm", il);
 
                 if(use_sparkinfer){
-                    cur = build_sparse_ffn(&model, cur, il);
+                    cur = build_sparse_ffn(&model, gf, cur, il);
                 }
                 else{
                     cur = build_ffn(cur,
@@ -5489,7 +5489,7 @@ struct llm_build_opt : public llm_graph_context {
             cb(cur, "ffn_norm", il);
 
             if(use_sparkinfer){
-                cur = build_sparse_ffn(&model, cur, il);
+                cur = build_sparse_ffn(&model, gf, cur, il);
             }
             else{
                 cur = build_ffn(cur,

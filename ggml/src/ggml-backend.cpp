@@ -1362,12 +1362,43 @@ static enum ggml_status ggml_backend_sched_compute_splits(ggml_backend_sched_t s
         int split_backend_id = split->backend_id;
         ggml_backend_t split_backend = sched->backends[split_backend_id];
 
+#if 0
+        // // print out nodes name in every splits graph
+        // printf("\n SPLIT %d: backend: %d %s # %d inputs\n", i, split_backend_id, ggml_backend_name(split_backend), split->n_inputs);
+        // // print out inputs of the splits:
+        // for (int j = 0; j < split->n_inputs; j++) {
+        //     struct ggml_tensor * input = split->inputs[j];
+        //     printf("  input %d: %s (%5.5s)\n", j, input->name, ggml_backend_name(sched->backends[tensor_backend_id(input)]));
+        // }
+        // for (int j = 0; j < split->graph.n_nodes; j++) {
+        //     struct ggml_tensor * node = split->graph.nodes[j];
+        //     printf("node %d (%s): %s | ", j, ggml_op_name(node->op), node->name);
+        //     for (int k = 0; k < GGML_MAX_SRC; k++) {
+        //         struct ggml_tensor * src = node->src[k];
+        //         if (src == NULL) {
+        //             continue;
+        //         }
+        //         printf("src %d: %s, ", k, src->name);
+        //     }
+        //     printf("\n");
+        // }
+        // // GGML_ABORT("debugging");
+#endif
+
         // copy the input tensors to the split backend
         for (int j = 0; j < split->n_inputs; j++) {
             ggml_backend_t input_backend = ggml_backend_sched_get_tensor_backend(sched, split->inputs[j]);
             struct ggml_tensor * input = split->inputs[j];
             struct ggml_tensor * input_cpy = tensor_copy(input, split_backend_id, sched->cur_copy);
 
+            // in the splits of reload in sparkinfer we dont need to copy the qgu inputs back to GPU
+            // for now we ensure there is only reload splits would have the input of gpu_ffn tensors
+            // this is quite hacky, but it works for now [GTODO] we need a better way to handle this
+            if (strstr(input->name, "ffn_qgu_") != NULL) {
+                // printf("skipping copy of %s from %s to %s\n", input->name, ggml_backend_name(input_backend), ggml_backend_name(split_backend));
+                continue;
+            }
+            
             if (input->flags & GGML_TENSOR_FLAG_INPUT) {
                 // inputs from the user must be copied immediately to prevent the user overwriting the data before the copy is done
                 if (sched->events[split_backend_id][sched->cur_copy] != NULL) {
@@ -1562,6 +1593,19 @@ bool ggml_backend_sched_reserve(ggml_backend_sched_t sched, struct ggml_cgraph *
 bool ggml_backend_sched_alloc_graph(ggml_backend_sched_t sched, struct ggml_cgraph * graph) {
     GGML_ASSERT((int)sched->hash_set.size >= graph->n_nodes + graph->n_leafs);
 
+#if 0
+    // // print out all nodes and leafs
+    // for (int i = 0; i < graph->n_nodes; i++) {
+    //     struct ggml_tensor * node = graph->nodes[i];
+    //     printf("node[%d]: %s\n", i, node->name);
+    // }
+    // for (int i = 0; i < graph->n_leafs; i++) {
+    //     struct ggml_tensor * leaf = graph->leafs[i];
+    //     printf("leaf[%d]: %s\n", i, leaf->name);
+    // }
+
+    // GGML_ABORT("debugging");
+#endif
     ggml_backend_sched_split_graph(sched, graph);
 
 

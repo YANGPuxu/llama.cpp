@@ -807,65 +807,44 @@ ggml_tensor * llm_graph_context::build_predictor(
     return sparse_idx;
 }
 
-ggml_tensor * build_reload(
-        ggml_context * ctx,
-        ggml_tensor * sparse_idx,
-        const struct llama_layer *L
-){
-    ggml_tensor * done_reload = nullptr;
+ggml_tensor * llm_graph_context::build_reload(ggml_context * ctx, ggml_cgraph * gf, struct sparkInfer_layer_cache * spif_cache, ggml_tensor * sparse_idx, const int il) const{
+    ggml_tensor * done_reload_gate;
+    ggml_tensor * done_reload_up;
+    ggml_tensor * done_reload_down;
 
-    ggml_tensor * up     = L->ffn_up;
-    ggml_tensor * gate   = L->ffn_gate;
-    ggml_tensor * down   = L->ffn_down_t;
-
-    ggml_tensor * up_b   = L->ffn_up_b;
-    ggml_tensor * gate_b = L->ffn_gate_b;
-
-    ggml_tensor * gpu_up   = L->ffn_gpu_up;
-    ggml_tensor * gpu_gate = L->ffn_gpu_gate;
-    ggml_tensor * gpu_down = L->ffn_gpu_down_t;
-
-    ggml_tensor * gpu_neu_idx  = L->ffn_gpu_neu_idx;
-    ggml_tensor * gpu_neu_mask = L->ffn_gpu_neu_mask;
-
-    GGML_ASSERT(gpu_neu_idx && "gpu_neu_idx is required for reloading");
-    GGML_ASSERT(sparse_idx && "sparse_idx is required for reloading");
-
-    ggml_status status = GGML_STATUS_FAILED;
-    if (gpu_up) {
-        status = ggml_reload_weights(ctx, gpu_up, sparse_idx, gpu_neu_idx);
-        if (status != GGML_STATUS_SUCCESS) {
-            GGML_ABORT("build reload-graph failed");
-        }
+    if(spif_cache->gpu_ffn_gate_cache){
+        done_reload_gate = spif_cache->build_reload_impl(ctx, sparse_idx, "gate", il);
+        cb(done_reload_gate, "ffn_gate_reload", il);
     }
+    done_reload_up   = spif_cache->build_reload_impl(ctx, sparse_idx, "up", il);
+    cb(done_reload_up, "ffn_up_reload", il);
+    done_reload_down = spif_cache->build_reload_impl(ctx, sparse_idx, "down", il);
+    cb(done_reload_down, "ffn_down_reload", il);
 
-    if (gpu_gate) {
-        status = ggml_reload_weights(ctx, gpu_gate, sparse_idx, gpu_neu_idx);
-        if (status != GGML_STATUS_SUCCESS) {
-            GGML_ABORT("build reload-graph failed");
-        }
+    // GTODO: do we need a node to combine these three tensors? or just build_forward_expand them one by one?
+    if(spif_cache->gpu_ffn_gate_cache){
+        ggml_build_forward_expand(gf, done_reload_gate);
+        ggml_backend_sched_set_tensor_backend(sched, done_reload_gate, backend_cpu);
     }
+    ggml_build_forward_expand(gf, done_reload_up);
+    ggml_backend_sched_set_tensor_backend(sched, done_reload_up, backend_cpu);
+    ggml_build_forward_expand(gf, done_reload_down);
+    ggml_backend_sched_set_tensor_backend(sched, done_reload_down, backend_cpu);
+    return nullptr;
 
-    if (gpu_down) {
-        status = ggml_reload_weights(ctx, gpu_down, sparse_idx, gpu_neu_idx);
-        if (status != GGML_STATUS_SUCCESS) {
-            GGML_ABORT("build reload-graph failed");
-        }
-    }
-
-    // GTODO[reload]: if we use split FFN,  we need to reload bias also
-
-    if(status == GGML_STATUS_SUCCESS){
-        return done_reload;
-    }
-    else{
-        GGML_ABORT("build reload-graph failed");
-    }
+    // ggml_tensor * result = ggml_new_tensor_2d(ctx, spif_cache->gpu_ffn_up_cache->type, spif_cache->gpu_ffn_up_cache->ne[0], spif_cache->gpu_ffn_up_cache->ne[1]);
+    
+    // result->op = GGML_OP_VIEW;
+    // result->src[0] = done_reload_up;
+    // result->src[1] = done_reload_down;
+    // result->src[2] = done_reload_gate ? done_reload_gate : ggml_new_tensor_1d(ctx, GGML_TYPE_I32, 0); // avoid null pointer
+    // return result;
 }
 
 // build sparse ffn graph new 
 ggml_tensor * llm_graph_context::build_sparse_ffn(
            const llama_model * model,
+                 ggml_cgraph * gf,
                  ggml_tensor * input,
                          int   il) const{          
 
@@ -875,6 +854,7 @@ ggml_tensor * llm_graph_context::build_sparse_ffn(
         llama_runtime_layer * R_next = il == (n_layer - 1) ? nullptr : &runtime_buf->layers[il+1];
 
         sparkInfer_layer_cache * spif_layer = spif_cache->layer_caches[il];
+        sparkInfer_layer_cache * spif_layer_next = (il == (n_layer - 1)) ? nullptr : spif_cache->layer_caches[il+1];
 
         // build sparse_idx for CURRENT layer
         bool full_gpu      = (L->gpu_offload_ratio >= 1.0f);
@@ -883,6 +863,7 @@ ggml_tensor * llm_graph_context::build_sparse_ffn(
         ggml_tensor * sparse_idx = nullptr;
         if (il == 0){
             sparse_idx = build_predictor(input, L->ffn_pred_up, L->ffn_pred_up_b, L->ffn_pred_down, L->ffn_pred_down_b, il);
+            // ggml_build_forward_expand(gf, sparse_idx);  // GTODO: when should we build forward predictors to meet the better pipeline?
         }else{
             sparse_idx = R.sparse_idx;
         }
@@ -890,12 +871,16 @@ ggml_tensor * llm_graph_context::build_sparse_ffn(
         // build sparse_idx for NEXT layer and RELOAD
         if (il != n_layer - 1) {
             ggml_tensor * next_sparse_idx = build_predictor(input, L_next->ffn_pred_up, L_next->ffn_pred_up_b, L_next->ffn_pred_down, L_next->ffn_pred_down_b, il+1);
+            ggml_build_forward_expand(gf, next_sparse_idx);
 
             R_next->sparse_idx = next_sparse_idx;
 
-            // GTODO[reload]: build reload
+            // build reload
             if(!next_full_gpu){
-                ggml_tensor * done_reload = build_reload(ctx0, next_sparse_idx, L_next); // GTODO[reload] how do we use the done_reload tensor as prerequisite?
+                ggml_tensor * done_reload = build_reload(ctx0, gf, spif_layer_next, next_sparse_idx, il+1);
+                // cb(done_reload, "ffn_reload_all", il+1);
+                // ggml_backend_sched_set_tensor_backend(sched, done_reload, backend_cpu);
+                // ggml_build_forward_expand(gf, done_reload);
             }
         }
 
@@ -920,11 +905,6 @@ ggml_tensor * llm_graph_context::build_sparse_ffn(
 
         ggml_tensor * gpu_neu_idx  = spif_layer->ffn_gpu_neu_idx;
         ggml_tensor * gpu_neu_mask = spif_layer->ffn_gpu_neu_mask;
-
-        ggml_tensor * DFR_score    = spif_layer->dfr_score;
-        float       decay_ratio    = spif_layer->decay_ratio;
-
-        if(!full_gpu) GGML_ASSERT(DFR_score);
 
         llm_ffn_gate_type type_gate = model->arch == LLM_ARCH_PRO_SPARSE_LLAMA ? LLM_FFN_PAR : LLM_FFN_NOGATE;
         llm_ffn_op_type   act_type  = LLM_FFN_RELU;
@@ -959,7 +939,7 @@ ggml_tensor * llm_graph_context::build_sparse_ffn(
 
                 // we only support par gate_op
                 if (type_gate == LLM_FFN_PAR){
-                    gate_out = act_fn(gate_out, "ffn_gate");
+                    gate_out = act_fn(gate_out, "ffn_gate_act");
 
                     gate_out = ggml_mul(ctx0, gate_out, up_out);
                     cb(gate_out, "ffn_gate_par",il);
