@@ -26,34 +26,67 @@
     ```
     这样，在当前 `reload` 分支中，从 `llama-context` 初始化到传递到 `build_graph` 的路径，仅需修改 `llama-context` 初始化部分。
 
-### 任务 3: 构建计算图
+### [done 待优化]任务 3: 构建计算图
 
 将 `build_reload` 函数写入 `sparkInfer_cache_manager` 类中，作为成员函数调用。
 
 #### 3.1 构建 `build_reload` 节点
 将 `build_reload` 作为节点插入计算图中，并强制后端为 CPU。设置 `src` 的内容如下：
 ```cpp
-result->src[0] = cpu_ffn_up;
-result->src[1] = gpu_ffn_up_cache;
-result->src[2] = sparse_idx;
-result->src[3] = ffn_gpu_neu_idx;
-result->src[4] = dfr_score;
+    // llama-sparkinfer.cpp line 209
+    result->op = GGML_OP_RELOAD_WEIGHTS;
+    result->src[0] = gpu_ffn;
+    result->src[1] = cpu_ffn;
+    result->src[2] = sparse_idx;
+    result->src[3] = ffn_gpu_neu_idx;
+    result->src[4] = ffn_gpu_neu_mask;
+    result->src[5] = dfr_score;
+    // and other mappings
 ```
 这些内容供图计算时获取和使用。
 
 #### 3.2 GPU 张量同步问题
 在 llama.cpp 的机制中，GPU 上的 `gpu_ffn_up_cache` 会被同步到与 `build_reload` 节点相同的 CPU 后端。  
 **[TODO]**: 修改划分 splits 的 `pass5`，避免将 `gpu_ffn_up_cache` 从 GPU 同步到 CPU。  
-已完成的解决方案：
+现在直接通过 tensor 名字去跳过这个同步 backends 的 copy 机制，可能需要优化
 ```cpp
-// 在 sparkinfer 的 reload splits 中，我们不需要将 qgu 输入复制回 GPU。
-// 当前确保只有 reload splits 会包含 gpu_ffn 张量的输入。
-// 这种方式较为 hacky，但目前可行。[GTODO] 需要更好的方法来处理这个问题。
-if (strstr(input->name, "ffn_qgu_") != NULL) {
-    continue;
-}
-
-好像有问题： 在图计算阶段，sparse_idx gpu_neu_idx还在 CUDA 上，[TODO:]再仔细看看这个跳过 splits input cpy 的逻辑
+    // llama-backend.cpp line 1198
+    if (src_backend_id != cur_backend_id && !ggml_backend_sched_buffer_supported(sched, src, cur_backend_id)) {
+        bool spif_skip_cpy = false;
+        if (strstr(src->name, "ffn_gpu_gate") || strstr(src->name, "ffn_gpu_up") || strstr(src->name, "ffn_gpu_down")) {
+            // in sparkinfer reloading splits, we skip the copy of these tensors since they are reloaded on the GPU
+            spif_skip_cpy = true;
+        }
+        // create a copy of the input in the split's backend
+        if ((tensor_id_copy(src_id, cur_backend_id, 0) == NULL) && !spif_skip_cpy) {
+            ggml_backend_t backend = sched->backends[cur_backend_id];
+            for (int c = 0; c < sched->n_copies; c++) {
+                struct ggml_tensor * tensor_copy = ggml_dup_tensor_layout(sched->ctx, src);
+                ggml_format_name(tensor_copy, "%s#%s#%d", ggml_backend_name(backend), src->name, c);
+                if (sched->n_copies > 1) {
+                    ggml_set_input(tensor_copy);
+                    ggml_set_output(tensor_copy); // prevent ggml-alloc from overwriting the tensor
+                }
+                tensor_id_copy(src_id, cur_backend_id, c) = tensor_copy;
+                SET_CAUSE(tensor_copy, "4.cpy");
+            }
+            int n_inputs = split->n_inputs++;
+            GGML_ASSERT(n_inputs < GGML_SCHED_MAX_SPLIT_INPUTS);
+            split->inputs[n_inputs] = src;
+        }
+        if (!spif_skip_cpy) node->src[j] = tensor_id_copy(src_id, cur_backend_id, sched->cur_copy);
+    }
+```
+```cpp
+    // llama-backend.cpp line 1399 
+    // in the splits of reload in sparkinfer we dont need to copy the gpu inputs back to GPU
+    // for now we ensure there is only reload splits would have the input of gpu_ffn tensors
+    // this is quite hacky, but it works for now [GTODO] we need a better way to handle this
+    if (strstr(input->name, "ffn_gpu_up") || strstr(input->name, "ffn_gpu_down") || strstr(input->name, "ffn_gpu_gate")) {
+        // printf("%s: %s\n", input->name, ggml_backend_buffer_name(input->buffer));
+        // printf("skipping copy of %s from %s to %s\n", input->name, ggml_backend_name(input_backend), ggml_backend_name(split_backend));
+        continue;
+    }
 ```
 
 #### 3.3 Reload 张量管理

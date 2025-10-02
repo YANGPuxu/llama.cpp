@@ -1196,8 +1196,13 @@ static void ggml_backend_sched_split_graph(ggml_backend_sched_t sched, struct gg
                 }
 
                 if (src_backend_id != cur_backend_id && !ggml_backend_sched_buffer_supported(sched, src, cur_backend_id)) {
+                    bool spif_skip_cpy = false;
+                    if (strstr(src->name, "ffn_gpu_gate") || strstr(src->name, "ffn_gpu_up") || strstr(src->name, "ffn_gpu_down")) {
+                        // in sparkinfer reloading splits, we skip the copy of these tensors since they are reloaded on the GPU
+                        spif_skip_cpy = true;
+                    }
                     // create a copy of the input in the split's backend
-                    if (tensor_id_copy(src_id, cur_backend_id, 0) == NULL) {
+                    if ((tensor_id_copy(src_id, cur_backend_id, 0) == NULL) && !spif_skip_cpy) {
                         ggml_backend_t backend = sched->backends[cur_backend_id];
                         for (int c = 0; c < sched->n_copies; c++) {
                             struct ggml_tensor * tensor_copy = ggml_dup_tensor_layout(sched->ctx, src);
@@ -1213,7 +1218,7 @@ static void ggml_backend_sched_split_graph(ggml_backend_sched_t sched, struct gg
                         GGML_ASSERT(n_inputs < GGML_SCHED_MAX_SPLIT_INPUTS);
                         split->inputs[n_inputs] = src;
                     }
-                    node->src[j] = tensor_id_copy(src_id, cur_backend_id, sched->cur_copy);
+                    if (!spif_skip_cpy) node->src[j] = tensor_id_copy(src_id, cur_backend_id, sched->cur_copy);
                 }
             }
         }
@@ -1391,10 +1396,11 @@ static enum ggml_status ggml_backend_sched_compute_splits(ggml_backend_sched_t s
             struct ggml_tensor * input = split->inputs[j];
             struct ggml_tensor * input_cpy = tensor_copy(input, split_backend_id, sched->cur_copy);
 
-            // in the splits of reload in sparkinfer we dont need to copy the qgu inputs back to GPU
+            // in the splits of reload in sparkinfer we dont need to copy the gpu inputs back to GPU
             // for now we ensure there is only reload splits would have the input of gpu_ffn tensors
             // this is quite hacky, but it works for now [GTODO] we need a better way to handle this
-            if (strstr(input->name, "ffn_qgu_") != NULL) {
+            if (strstr(input->name, "ffn_gpu_up") || strstr(input->name, "ffn_gpu_down") || strstr(input->name, "ffn_gpu_gate")) {
+                // printf("%s: %s\n", input->name, ggml_backend_buffer_name(input->buffer));
                 // printf("skipping copy of %s from %s to %s\n", input->name, ggml_backend_name(input_backend), ggml_backend_name(split_backend));
                 continue;
             }

@@ -2622,13 +2622,13 @@ static void reload_weights(
           struct ggml_tensor * DFR_score       = tensor->src[5];
           // and other mappings
 
-    // // GTODO[reload]: check weights is on GPU, while others are on CPU 
-    GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_weights->buffer), "CUDA") != NULL);
+    // check weights is on GPU, while others are on CPU or CUDA_Host(in cpu pinned memory)
+    GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_weights->buffer), "CUDA0") != NULL);
     GGML_ASSERT(strstr(ggml_backend_buffer_name(cpu_weights->buffer), "CPU") != NULL);
-    // GGML_ASSERT(strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CPU") != NULL);  // [GTODO]: we fail this, why??? why this on CUDA
-    // GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_neu_idx->buffer), "CPU") != NULL);
-    // GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_neu_mask->buffer), "CPU") != NULL);
-    // GGML_ASSERT(strstr(ggml_backend_buffer_name(DFR_score->buffer), "CPU") != NULL);
+    GGML_ASSERT(strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CPU") || strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CUDA_Host"));
+    GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_neu_idx->buffer), "CPU") || strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CUDA_Host"));
+    GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_neu_mask->buffer), "CPU") || strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CUDA_Host"));
+    GGML_ASSERT(strstr(ggml_backend_buffer_name(DFR_score->buffer), "CPU") || strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CUDA_Host"));
 
     // GTODO[reload]: here is the real implementation of reloading weights, updating DFR_score and gpu_neu_idx
 }

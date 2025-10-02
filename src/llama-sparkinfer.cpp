@@ -109,20 +109,20 @@ bool sparkInfer_layer_cache:: init(int layer_idx, llama_model& model, llama_laye
 
     if(has_gate) {
         gpu_ffn_gate_cache = ggml_new_tensor_2d(tmp_ctx, cpu_ffn_gate->type, cpu_ffn_gate->ne[0], neuron_cache_capacity);
-        snprintf(gate_name, sizeof(gate_name), "blk.%d.ffn_qgu_gate.weight", layer_idx);
+        snprintf(gate_name, sizeof(gate_name), "blk.%d.ffn_gpu_gate.weight", layer_idx);
         ggml_set_name(gpu_ffn_gate_cache, gate_name);
         ggml_backend_tensor_alloc(gpu_weights_buffer, gpu_ffn_gate_cache, current_addr);
         current_addr = (char*)current_addr + single_cache_size;
     }
 
     gpu_ffn_up_cache = ggml_new_tensor_2d(tmp_ctx, cpu_ffn_up->type, cpu_ffn_up->ne[0], neuron_cache_capacity);
-    snprintf(gate_name, sizeof(gate_name), "blk.%d.ffn_qgu_up.weight", layer_idx);
+    snprintf(gate_name, sizeof(gate_name), "blk.%d.ffn_gpu_up.weight", layer_idx);
     ggml_set_name(gpu_ffn_up_cache, gate_name);
     ggml_backend_tensor_alloc(gpu_weights_buffer, gpu_ffn_up_cache, current_addr);
     current_addr = (char*)current_addr + single_cache_size;
 
     gpu_ffn_down_t_cache = ggml_new_tensor_2d(tmp_ctx, cpu_ffn_down_t->type, cpu_ffn_down_t->ne[0], neuron_cache_capacity);
-    snprintf(gate_name, sizeof(gate_name), "blk.%d.ffn_qgu_down_t.weight", layer_idx);
+    snprintf(gate_name, sizeof(gate_name), "blk.%d.ffn_gpu_down_t.weight", layer_idx);
     ggml_set_name(gpu_ffn_down_t_cache, gate_name);
     ggml_backend_tensor_alloc(gpu_weights_buffer, gpu_ffn_down_t_cache, current_addr);
     
