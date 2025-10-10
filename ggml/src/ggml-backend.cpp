@@ -721,6 +721,60 @@ static int ggml_backend_sched_backend_from_buffer(ggml_backend_sched_t sched, co
 static char causes[GGML_DEFAULT_GRAPH_SIZE*16 + GGML_SCHED_MAX_SPLITS_DEBUG*GGML_SCHED_MAX_SPLIT_INPUTS][128]; // debug only
 #define SET_CAUSE(node, ...) sprintf(causes[hash_id(node)], __VA_ARGS__)
 #define GET_CAUSE(node) causes[hash_id(node)]
+
+void print_split_cause(ggml_backend_sched_t sched, char * msg, bool abort) {
+    printf("\n\n================= %s =================\n", msg);
+    struct ggml_backend_sched_split * splits = sched->splits;
+    // print cause of each nodes in each splits:
+    for (int i = 0; i < sched->n_splits; i++) {
+        struct ggml_backend_sched_split * split = &splits[i];
+        printf("\n## SPLIT #%d: BACKEND:%d # %d inputs", i, split->backend_id, split->n_inputs);
+        for (int j = 0; j < split->n_inputs; j++) {
+            if (j == 0) {
+                printf(": ");
+            }
+            printf("\ninput %d: [%s] ", j, split->inputs[j]->name);
+        }
+        printf("\n");
+        for (int j = 0; j < split->graph.n_nodes; j++) {
+            struct ggml_tensor * node = split->graph.nodes[j];
+            printf("node #%d (%s): %s (BACKEND: %d) CAUSE: [%s]:", j, ggml_op_name(node->op), node->name, tensor_backend_id(node), GET_CAUSE(node));
+            for (int k = 0; k < GGML_MAX_SRC; k++) {
+                struct ggml_tensor * src = node->src[k];
+                if (src == NULL) {
+                    continue;
+                }
+                printf(" %s (BACKEND: %d) CAUSE: [%s]", src->name, tensor_backend_id(src), GET_CAUSE(src));
+            }
+            printf("\n");
+        }
+    }
+    if (abort) GGML_ABORT("debugging");
+}
+
+static int cnt = 0;
+
+void print_graph_splits(ggml_backend_sched_t sched, struct ggml_cgraph * graph, char* msg, bool abort) {
+    if (cnt++ < 3) return; // to skip worst case graph reserve
+    printf("\n\n================= %s =================\n", msg);
+    for (int i = 0; i < graph->n_nodes; i++) {
+        if (strstr(graph->nodes[i]->name, "31") != NULL) {
+            continue;
+        }
+        struct ggml_tensor * node = graph->nodes[i];
+        printf("node #%d (%s): %s (BACKEND: %d) CAUSE: [%s]:", i, ggml_op_name(node->op), node->name, tensor_backend_id(node), GET_CAUSE(node));
+        // for (int k = 0; k < GGML_MAX_SRC; k++) {
+        //     struct ggml_tensor * src = node->src[k];
+        //     if (src == NULL) {
+        //         continue;
+        //     }
+        //     printf(" %s (BACKEND: %d) CAUSE: [%s]", src->name, tensor_backend_id(src), GET_CAUSE(src));
+        // }
+        printf("\n");
+    }
+    printf("\n\n");
+    if (abort) GGML_ABORT("debugging");
+}
 #else
 #define SET_CAUSE(node, ...)
 #define GET_CAUSE(node) ""
@@ -1394,7 +1448,6 @@ static enum ggml_status ggml_backend_sched_compute_splits(ggml_backend_sched_t s
         for (int j = 0; j < split->n_inputs; j++) {
             ggml_backend_t input_backend = ggml_backend_sched_get_tensor_backend(sched, split->inputs[j]);
             struct ggml_tensor * input = split->inputs[j];
-            struct ggml_tensor * input_cpy = tensor_copy(input, split_backend_id, sched->cur_copy);
 
             // in the splits of reload in sparkinfer we dont need to copy the gpu inputs back to GPU
             // for now we ensure there is only reload splits would have the input of gpu_ffn tensors
@@ -1404,6 +1457,8 @@ static enum ggml_status ggml_backend_sched_compute_splits(ggml_backend_sched_t s
                 // printf("skipping copy of %s from %s to %s\n", input->name, ggml_backend_name(input_backend), ggml_backend_name(split_backend));
                 continue;
             }
+            
+            struct ggml_tensor * input_cpy = tensor_copy(input, split_backend_id, sched->cur_copy);
             
             if (input->flags & GGML_TENSOR_FLAG_INPUT) {
                 // inputs from the user must be copied immediately to prevent the user overwriting the data before the copy is done

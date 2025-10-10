@@ -749,7 +749,6 @@ ggml_tensor * llm_graph_context::build_sparse_axpy(
     std::string full_name = "ffn_" + std::string(name) + "_sparse";
     ggml_tensor * out = nullptr;
 
-    // GTODO : do we need specific implement of full_gpu? 
     if(full_gpu){
         ggml_tensor * out = ggml_axpy_sparse(ctx0, gpu_weight, cur, sparse_idx, nullptr);
         cb(out, (full_name + "_gpu").c_str(), il);

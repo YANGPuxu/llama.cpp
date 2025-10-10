@@ -428,35 +428,39 @@ typedef pthread_mutex_t    ggml_mutex_t;
 
 #endif
 
-// #include <nvtx3/nvToolsExt.h>
-// const uint32_t colors[] = { 0xff00ff00, 0xff0000ff, 0xffffff00, 0xffff00ff, 0xff00ffff, 0xffff0000, 0xffffffff };
-// const int num_colors = sizeof(colors)/sizeof(uint32_t);
+#define USE_NVTX 0
 
-// nvtxRangeId_t nvtx_init(struct ggml_compute_params * params, char * name, char * extra_info){
-//     char full_name[64];
-//     snprintf(full_name, sizeof(full_name), "%s_%s", name, extra_info);
+#ifdef USE_NVTX
+#include <nvtx3/nvToolsExt.h>
+const uint32_t colors[] = { 0xff00ff00, 0xff0000ff, 0xffffff00, 0xffff00ff, 0xff00ffff, 0xffff0000, 0xffffffff };
+const int num_colors = sizeof(colors)/sizeof(uint32_t);
 
-//     int thread_id = params->ith;
-//     int color_id = thread_id%num_colors;
+nvtxRangeId_t nvtx_init(struct ggml_compute_params * params, char * name, char * extra_info){
+    char full_name[64];
+    snprintf(full_name, sizeof(full_name), "%s_%s", name, extra_info);
 
-//     nvtxEventAttributes_t eventAttrib = {0};
-//     eventAttrib.version = NVTX_VERSION;
-//     eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
+    int thread_id = params->ith;
+    int color_id = thread_id%num_colors;
 
-//     // Set a color for better visibility
-//     eventAttrib.colorType = NVTX_COLOR_ARGB;
-//     eventAttrib.color = colors[color_id]; // Blue color
+    nvtxEventAttributes_t eventAttrib = {0};
+    eventAttrib.version = NVTX_VERSION;
+    eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
 
-//     // Add tensor information as message
-//     char message[256];
-//     snprintf(message, sizeof(message), "[t%d] %s ", thread_id, full_name);
-//     message[sizeof(message)-1] = '\0';
-//     eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;
-//     eventAttrib.message.ascii = message;
+    // Set a color for better visibility
+    eventAttrib.colorType = NVTX_COLOR_ARGB;
+    eventAttrib.color = colors[color_id]; // Blue color
 
-//     nvtxRangeId_t id = nvtxRangeStartEx(&eventAttrib);
-//     return id;
-// }
+    // Add tensor information as message
+    char message[256];
+    snprintf(message, sizeof(message), "[t%d] %s ", thread_id, full_name);
+    message[sizeof(message)-1] = '\0';
+    eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;
+    eventAttrib.message.ascii = message;
+
+    nvtxRangeId_t id = nvtxRangeStartEx(&eventAttrib);
+    return id;
+}
+#endif
 
 // Threadpool def
 struct ggml_threadpool {
@@ -1713,7 +1717,9 @@ static void ggml_compute_forward_mul_mat_sparse(
     int current_chunk = ith;
 
     while (current_chunk < nchunk0 * nchunk1) {
+#ifdef USE_NVTX
         // nvtxRangeId_t id_computing = nvtx_init(params, "computing", " ");
+#endif
         const int64_t ith0 = current_chunk % nchunk0;
         const int64_t ith1 = current_chunk / nchunk0;
 
@@ -1735,7 +1741,9 @@ static void ggml_compute_forward_mul_mat_sparse(
         if (nth >= nchunk0 * nchunk1) {
             break;
         }
+#ifdef USE_NVTX
         // nvtxRangeEnd(id_computing);
+#endif
         current_chunk = atomic_fetch_add_explicit(&params->threadpool->current_chunk, 1, memory_order_relaxed);
     }
 }
@@ -1987,7 +1995,9 @@ static void ggml_compute_forward_mul_mat_sparse_premask(
     int current_chunk = ith;
 
     while (current_chunk < nchunk0 * nchunk1) {
+#ifdef USE_NVTX
         // nvtxRangeId_t id_computing = nvtx_init(params, "computing", " ");
+#endif
         const int64_t ith0 = current_chunk % nchunk0;
         const int64_t ith1 = current_chunk / nchunk0;
 
@@ -2010,7 +2020,9 @@ static void ggml_compute_forward_mul_mat_sparse_premask(
         if (nth >= nchunk0 * nchunk1) {
             break;
         }
+#ifdef USE_NVTX
         // nvtxRangeEnd(id_computing);
+#endif
         current_chunk = atomic_fetch_add_explicit(&params->threadpool->current_chunk, 1, memory_order_relaxed);
     }
 }
@@ -2459,9 +2471,13 @@ static void ggml_compute_forward_axpy_sparse(
         const int64_t   end_neu = MIN(rows_per_chunk * (current_chunk+1), ne01);
 
         // chunk compute
-        // nvtxRangeId_t id_computing = nvtx_init(params, "computing", " ");
+#ifdef USE_NVTX
+        nvtxRangeId_t id_computing = nvtx_init(params, "computing", " ");
         ggml_compute_forward_axpy_sparse_one_chunk(params, dst, src0->type, start_neu, end_neu);
-        // nvtxRangeEnd(id_computing);
+        nvtxRangeEnd(id_computing);
+#else
+        ggml_compute_forward_axpy_sparse_one_chunk(params, dst, src0->type, start_neu, end_neu);
+#endif
 
         // get the next chunk
         current_chunk = atomic_fetch_add_explicit(&params->threadpool->current_chunk, 1, memory_order_relaxed);
@@ -2545,7 +2561,6 @@ static void ggml_compute_forward_axpy_sparse_new(
     const int64_t start_neu = neu_per_thread*ith;  // start neu of the thread
     const int64_t   end_neu = start_neu + neu_per_thread;
 
-    // nvtxRangeId_t id_computing = nvtx_init(params, "computing", " ");
 
 #if defined(_MSC_VER)
     float* vec = (float *)_malloca(ne00 * sizeof(float));
@@ -2606,7 +2621,6 @@ static void ggml_compute_forward_axpy_sparse_new(
 #if defined(_MSC_VER)
     _freea(vec);
 #endif
-    // nvtxRangeEnd(id_computing);
 }
 
 //----------------------reload weights op----------------------------
@@ -2631,6 +2645,7 @@ static void reload_weights(
     GGML_ASSERT(strstr(ggml_backend_buffer_name(DFR_score->buffer), "CPU") || strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CUDA_Host"));
 
     // GTODO[reload]: here is the real implementation of reloading weights, updating DFR_score and gpu_neu_idx
+
 }
 
 /////////////////////////////////
@@ -3833,10 +3848,13 @@ static thread_ret_t ggml_graph_compute_thread(void * data) {
     for (int node_n = 0; node_n < cgraph->n_nodes && atomic_load_explicit(&tp->abort, memory_order_relaxed) != node_n; node_n++) {
         struct ggml_tensor * node = cgraph->nodes[node_n];
         
-        // add nvtx for nsys
-        // nvtxRangeId_t id = nvtx_init(&params, node->name, "CPU");
+#ifdef USE_NVTX
+        nvtxRangeId_t id = nvtx_init(&params, node->name, "CPU");
         ggml_compute_forward(&params, node);
-        // nvtxRangeEnd(id);
+        nvtxRangeEnd(id);
+#else
+        ggml_compute_forward(&params, node);
+#endif
 
         if (state->ith == 0 && cplan->abort_callback &&
                 cplan->abort_callback(cplan->abort_callback_data)) {

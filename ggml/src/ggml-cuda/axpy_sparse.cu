@@ -2,7 +2,6 @@
 #include "common.cuh"
 #include "axpy_sparse.cuh"
 
-// GTODO: the two kernel are demo kernels for axpy, need to be optimized in the future...
 
 static __global__ void mul_mat_axpy_sparse(
     const void * __restrict__ vx, 

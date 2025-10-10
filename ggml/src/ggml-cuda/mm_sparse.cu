@@ -103,7 +103,6 @@ static __global__ void mul_mat_vec_sparse(
 // 
 
 // batch
-// GTODO: we have not tested the kernel so far, test it when batch-example could be run
 template <typename T, typename type_acc, int block_size>
 static __global__ void mul_mat_batch_sparse(
         const T *           __restrict__ x, 
@@ -135,10 +134,10 @@ static __global__ void mul_mat_batch_sparse(
     //     printf("x=%p, y=%p, dst=%p, sparse_idx[%ld]=%f, address=%p\n", x, y, dst, neu, sparse_idx[neu], &sparse_idx[neu]);
 
     // if(tid == 0 && row % 500 == 0) printf("s1col_b=%ld, row=%ld sparse_idx[%ld]=%f, idx_address=%p\n", s1col_b, row, neu, sparse_idx[neu], &sparse_idx[neu]);
-    // if(sparse_idx[neu] < 0.5f){ // GTODO: do we need sparse_threshold?
-    //     dst[neu] = 0.0f;
-    //     return;
-    // }
+    if(sparse_idx[neu] < 0.5f){ // GTODO: do we need sparse_threshold?
+        // dst[neu] = 0.0f;
+        return;
+    }
 
     const float2 * y2 = (const float2 *) y;
 

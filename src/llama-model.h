@@ -232,7 +232,7 @@ struct llama_layer {
     
     // ff
     struct ggml_tensor * ffn_gate     = nullptr; // w1
-    struct ggml_tensor * ffn_down     = nullptr; // w2 // GTODO: don't use this !! this is just for none sparse inference
+    struct ggml_tensor * ffn_down     = nullptr; // w2 // don't use this !! this is just for none sparse inference
     struct ggml_tensor * ffn_down_t   = nullptr; // transformed down !!
     struct ggml_tensor * ffn_up       = nullptr; // w3
     struct ggml_tensor * ffn_gate_enc = nullptr;

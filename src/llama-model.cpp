@@ -1553,7 +1553,7 @@ bool llama_model::load_sparse_tensors(llama_model_loader &ml, size_t vram_budget
     if (cpu_dev == nullptr) {
         throw std::runtime_error(format("%s: no CPU backend found", __func__));
     }
-    // GTODO: using allocator to copy all non ffn tensor to GPU
+
     const int i_gpu_start = std::max((int) hparams.n_layer - n_gpu_layers, (int) 0);
     const int act_gpu_layers = devices.empty() ? 0 : std::min(n_gpu_layers, (int)n_layer + 1);
     auto get_layer_buft_list = [&](int il) -> llama_model::impl::layer_dev {

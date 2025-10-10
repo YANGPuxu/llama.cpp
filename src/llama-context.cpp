@@ -224,6 +224,7 @@ llama_context::llama_context(
 
         // TODO: move these checks to ggml_backend_sched
         // enabling pipeline parallelism in the scheduler increases memory usage, so it is only done when necessary
+        // GTODO: work here to support CPU parrallelism
         bool pipeline_parallel =
             model.n_devices() > 1 &&
             model.params.n_gpu_layers > (int) model.hparams.n_layer &&
@@ -254,6 +255,8 @@ llama_context::llama_context(
 
         if (pipeline_parallel) {
             LLAMA_LOG_INFO("%s: pipeline parallelism enabled (n_copies=%d)\n", __func__, ggml_backend_sched_get_n_copies(sched.get()));
+        } else{
+            LLAMA_LOG_INFO("%s: pipeline parallelism not enabled\n", __func__);
         }
     }
 
@@ -981,7 +984,6 @@ int llama_context::decode(llama_batch & inp_batch) {
         ggml_backend_sched_reset(sched.get());
         ggml_backend_sched_set_eval_callback(sched.get(), cparams.cb_eval, cparams.cb_eval_user_data);
 
-        // GTODO : build graph -> backend sched -> compute
         auto * gf = graph_init();
         auto res = graph_build(ctx_compute.get(), gf, ubatch, LLM_GRAPH_TYPE_DECODER);
 
@@ -991,7 +993,7 @@ int llama_context::decode(llama_batch & inp_batch) {
 
         res->set_inputs(&ubatch);
 
-        const auto compute_status = graph_compute(gf, ubatch.n_tokens > 1); // GTODO_COMPUTE
+        const auto compute_status = graph_compute(gf, ubatch.n_tokens > 1);
         if (compute_status != GGML_STATUS_SUCCESS) {
             switch (compute_status) {
                 case GGML_STATUS_ABORTED:
@@ -1300,7 +1302,7 @@ ggml_status llama_context::graph_compute(
         set_n_threads_fn.second(set_n_threads_fn.first, n_threads);
     }
 
-    auto status = ggml_backend_sched_graph_compute_async(sched.get(), gf); //GTODO: scheduler
+    auto status = ggml_backend_sched_graph_compute_async(sched.get(), gf);
     if (status != GGML_STATUS_SUCCESS) {
         LLAMA_LOG_ERROR("%s: ggml_backend_sched_graph_compute_async failed with error %d\n", __func__, status);
     }
