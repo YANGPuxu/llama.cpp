@@ -1413,6 +1413,38 @@ static bool ggml_backend_sched_alloc_splits(ggml_backend_sched_t sched) {
     return true;
 }
 
+#define USE_NVTX 0
+#ifdef USE_NVTX
+#include <nvtx3/nvToolsExt.h>
+const uint32_t colors[] = {0xff808080};
+const int num_colors = sizeof(colors)/sizeof(uint32_t);
+
+nvtxRangeId_t nvtx_init(char * name, char * extra_info){
+    char full_name[64];
+    snprintf(full_name, sizeof(full_name), "%s_%s", name, extra_info);
+
+    int color_id = 0;
+
+    nvtxEventAttributes_t eventAttrib = {0};
+    eventAttrib.version = NVTX_VERSION;
+    eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
+
+    // Set a color for better visibility
+    eventAttrib.colorType = NVTX_COLOR_ARGB;
+    eventAttrib.color = colors[color_id];
+
+    // Add tensor information as message
+    char message[256];
+    snprintf(message, sizeof(message), "%s_%s", full_name, "_SYNC");
+    message[sizeof(message)-1] = '\0';
+    eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;
+    eventAttrib.message.ascii = message;
+
+    nvtxRangeId_t id = nvtxRangeStartEx(&eventAttrib);
+    return id;
+}
+#endif
+
 static enum ggml_status ggml_backend_sched_compute_splits(ggml_backend_sched_t sched) {
     struct ggml_backend_sched_split * splits = sched->splits;
 
@@ -1462,28 +1494,31 @@ static enum ggml_status ggml_backend_sched_compute_splits(ggml_backend_sched_t s
             
             if (input->flags & GGML_TENSOR_FLAG_INPUT) {
                 // inputs from the user must be copied immediately to prevent the user overwriting the data before the copy is done
-                if (sched->events[split_backend_id][sched->cur_copy] != NULL) {
-                    ggml_backend_event_synchronize(sched->events[split_backend_id][sched->cur_copy]);
-                } else {
-                    ggml_backend_synchronize(split_backend);
-                }
+                // if (sched->events[split_backend_id][sched->cur_copy] != NULL) {
+                //     ggml_backend_event_synchronize(sched->events[split_backend_id][sched->cur_copy]);
+                // } 
+                // else {
+                //     ggml_backend_synchronize(split_backend);
+                // }
                 ggml_backend_tensor_copy(input, input_cpy);
             } else {
                 // wait for the split backend to finish using the input before overwriting it
-                if (sched->events[split_backend_id][sched->cur_copy] != NULL) {
-                    ggml_backend_event_wait(split_backend, sched->events[split_backend_id][sched->cur_copy]);
-                } else {
-                    ggml_backend_synchronize(split_backend);
-                }
+                // if (sched->events[split_backend_id][sched->cur_copy] != NULL) {
+                //     ggml_backend_event_wait(split_backend, sched->events[split_backend_id][sched->cur_copy]);
+                // } 
+                // else {
+                //     ggml_backend_synchronize(split_backend);
+                // }
                 // try async copy, but if not possible, we can still use a sync copy without synchronizing the dst backend, since we handle the synchronization here with multiple copies and events
                 // TODO: add public function to facilitate this, since applications do not have direct access to the backend interface
                 if (!split_backend->iface.cpy_tensor_async || !split_backend->iface.cpy_tensor_async(input_backend, split_backend, input, input_cpy)) {
-                    ggml_backend_synchronize(input_backend);
-                    if (sched->events[split_backend_id][sched->cur_copy] != NULL) {
-                        ggml_backend_event_synchronize(sched->events[split_backend_id][sched->cur_copy]);
-                    } else {
-                        ggml_backend_synchronize(split_backend);
-                    }
+                    ggml_backend_synchronize(input_backend); // 等待 input 计算完, cpu/gpu 都会走这里
+                    // if (sched->events[split_backend_id][sched->cur_copy] != NULL) {
+                    //     ggml_backend_event_synchronize(sched->events[split_backend_id][sched->cur_copy]);
+                    // } 
+                    // else {
+                    //     ggml_backend_synchronize(split_backend);
+                    // }
                     ggml_backend_tensor_copy(input, input_cpy);
                 }
             }
@@ -1528,12 +1563,12 @@ static enum ggml_status ggml_backend_sched_compute_splits(ggml_backend_sched_t s
             }
         }
 
-        // record the event of this copy
-        if (split->n_inputs > 0) {
-            if (sched->events[split_backend_id][sched->cur_copy] != NULL) {
-                ggml_backend_event_record(sched->events[split_backend_id][sched->cur_copy], split_backend);
-            }
-        }
+        // // record the event of this copy
+        // if (split->n_inputs > 0) {
+        //     if (sched->events[split_backend_id][sched->cur_copy] != NULL) {
+        //         ggml_backend_event_record(sched->events[split_backend_id][sched->cur_copy], split_backend);
+        //     }
+        // }
     }
 
     sched->cur_copy = (sched->cur_copy + 1) % sched->n_copies;

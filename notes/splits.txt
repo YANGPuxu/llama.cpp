@@ -1580,12 +1580,13 @@ node 38 (UNARY): pred_out-28 | src 0: pred_down_b-28,
   input 3: blk.28.ffn_qgu_up.weight (CUDA0)
   input 4: blk.28.ffn_qgu_down_t.weight (CUDA0)
   input 5: ffn_norm-27 (CUDA0)
-node 0 (RELOAD): ffn_gate_reload-28 | src 0: CPU#blk.28.ffn_qgu_gate.weight#0, src 1: blk.28.ffn_gate.weight, src 2: CPU#pred_out-28#0, src 3: CPU#blk.28.ffn_gpu_neu_idx#0, src 4: blk.28.ffn_gpu_neu_mask, src 5: blk.28.ffn_dfr_score, 
-node 1 (RELOAD): ffn_up_reload-28 | src 0: CPU#blk.28.ffn_qgu_up.weight#0, src 1: blk.28.ffn_up.weight, src 2: CPU#pred_out-28#0, src 3: CPU#blk.28.ffn_gpu_neu_idx#0, src 4: blk.28.ffn_gpu_neu_mask, src 5: blk.28.ffn_dfr_score, 
-node 2 (RELOAD): ffn_down_reload-28 | src 0: CPU#blk.28.ffn_qgu_down_t.weight#0, src 1: blk.28.ffn_down_t.weight, src 2: CPU#pred_out-28#0, src 3: CPU#blk.28.ffn_gpu_neu_idx#0, src 4: blk.28.ffn_gpu_neu_mask, src 5: blk.28.ffn_dfr_score, 
+
 node 3 (MUL_MAT_SPARSE): ffn_gate_sparse-27 | src 0: blk.27.ffn_gate.weight, src 1: CPU#ffn_norm-27#0, src 2: CPU#pred_out-27#0, src 3: blk.27.ffn_gpu_neu_mask, 
 
  SPLIT 79: backend: 0 CUDA0 # 0 inputs
+ node 0 (RELOAD): ffn_gate_reload-28 | src 0: CPU#blk.28.ffn_qgu_gate.weight#0, src 1: blk.28.ffn_gate.weight, src 2: CPU#pred_out-28#0, src 3: CPU#blk.28.ffn_gpu_neu_idx#0, src 4: blk.28.ffn_gpu_neu_mask, src 5: blk.28.ffn_dfr_score, 
+node 1 (RELOAD): ffn_up_reload-28 | src 0: CPU#blk.28.ffn_qgu_up.weight#0, src 1: blk.28.ffn_up.weight, src 2: CPU#pred_out-28#0, src 3: CPU#blk.28.ffn_gpu_neu_idx#0, src 4: blk.28.ffn_gpu_neu_mask, src 5: blk.28.ffn_dfr_score, 
+node 2 (RELOAD): ffn_down_reload-28 | src 0: CPU#blk.28.ffn_qgu_down_t.weight#0, src 1: blk.28.ffn_down_t.weight, src 2: CPU#pred_out-28#0, src 3: CPU#blk.28.ffn_gpu_neu_idx#0, src 4: blk.28.ffn_gpu_neu_mask, src 5: blk.28.ffn_dfr_score, 
 node 0 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-27 | src 0: blk.27.ffn_qgu_gate.weight, src 1: ffn_norm-27, src 2: pred_out-27, src 3: blk.27.ffn_gpu_neu_idx, 
 
  SPLIT 80: backend: 1 CPU # 1 inputs

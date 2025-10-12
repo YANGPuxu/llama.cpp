@@ -57,23 +57,9 @@
             // in sparkinfer reloading splits, we skip the copy of these tensors since they are reloaded on the GPU
             spif_skip_cpy = true;
         }
-        // create a copy of the input in the split's backend
-        if ((tensor_id_copy(src_id, cur_backend_id, 0) == NULL) && !spif_skip_cpy) {
-            ggml_backend_t backend = sched->backends[cur_backend_id];
-            for (int c = 0; c < sched->n_copies; c++) {
-                struct ggml_tensor * tensor_copy = ggml_dup_tensor_layout(sched->ctx, src);
-                ggml_format_name(tensor_copy, "%s#%s#%d", ggml_backend_name(backend), src->name, c);
-                if (sched->n_copies > 1) {
-                    ggml_set_input(tensor_copy);
-                    ggml_set_output(tensor_copy); // prevent ggml-alloc from overwriting the tensor
-                }
-                tensor_id_copy(src_id, cur_backend_id, c) = tensor_copy;
-                SET_CAUSE(tensor_copy, "4.cpy");
-            }
-            int n_inputs = split->n_inputs++;
-            GGML_ASSERT(n_inputs < GGML_SCHED_MAX_SPLIT_INPUTS);
-            split->inputs[n_inputs] = src;
-        }
+        
+        // .....
+        
         if (!spif_skip_cpy) node->src[j] = tensor_id_copy(src_id, cur_backend_id, sched->cur_copy);
     }
 ```
@@ -101,6 +87,7 @@
 
 ### 任务 4: graph splits 的并行计算实现
  - reload 的 splits 在并行的时候怎么异步保证 reload 完成？不影响下一个 cpu 后端的 mulmat splits 的计算
+ - 见 `splits-parrallel.md`
 
 ### 任务 5: cold hit 依旧很高
  - 后几层的 cpu 计算 burden 很大，远超 gpu 计算时间
