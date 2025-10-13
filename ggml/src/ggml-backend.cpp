@@ -1251,7 +1251,7 @@ static void ggml_backend_sched_split_graph(ggml_backend_sched_t sched, struct gg
 
                 if (src_backend_id != cur_backend_id && !ggml_backend_sched_buffer_supported(sched, src, cur_backend_id)) {
                     bool spif_skip_cpy = false;
-                    if (strstr(src->name, "ffn_gpu_gate") || strstr(src->name, "ffn_gpu_up") || strstr(src->name, "ffn_gpu_down")) {
+                    if (strstr(src->name, "ffn_gate.weight") || strstr(src->name, "ffn_up.weight") || strstr(src->name, "ffn_down_t.weight") || !strstr(node->name, "sparse")) {
                         // in sparkinfer reloading splits, we skip the copy of these tensors since they are reloaded on the GPU
                         spif_skip_cpy = true;
                     }
@@ -1454,26 +1454,26 @@ static enum ggml_status ggml_backend_sched_compute_splits(ggml_backend_sched_t s
         ggml_backend_t split_backend = sched->backends[split_backend_id];
 
 #if 0
-        // // print out nodes name in every splits graph
-        // printf("\n SPLIT %d: backend: %d %s # %d inputs\n", i, split_backend_id, ggml_backend_name(split_backend), split->n_inputs);
-        // // print out inputs of the splits:
-        // for (int j = 0; j < split->n_inputs; j++) {
-        //     struct ggml_tensor * input = split->inputs[j];
-        //     printf("  input %d: %s (%5.5s)\n", j, input->name, ggml_backend_name(sched->backends[tensor_backend_id(input)]));
-        // }
-        // for (int j = 0; j < split->graph.n_nodes; j++) {
-        //     struct ggml_tensor * node = split->graph.nodes[j];
-        //     printf("node %d (%s): %s | ", j, ggml_op_name(node->op), node->name);
-        //     for (int k = 0; k < GGML_MAX_SRC; k++) {
-        //         struct ggml_tensor * src = node->src[k];
-        //         if (src == NULL) {
-        //             continue;
-        //         }
-        //         printf("src %d: %s, ", k, src->name);
-        //     }
-        //     printf("\n");
-        // }
-        // // GGML_ABORT("debugging");
+        // print out nodes name in every splits graph
+            printf("\n SPLIT %d: backend: %d %s # %d inputs\n", i, split_backend_id, ggml_backend_name(split_backend), split->n_inputs);
+            // print out inputs of the splits:
+            for (int j = 0; j < split->n_inputs; j++) {
+                struct ggml_tensor * input = split->inputs[j];
+                printf("  input %d: %s (%5.5s)\n", j, input->name, ggml_backend_name(sched->backends[tensor_backend_id(input)]));
+            }
+            for (int j = 0; j < split->graph.n_nodes; j++) {
+                struct ggml_tensor * node = split->graph.nodes[j];
+                printf("node %d (%s): %s | ", j, ggml_op_name(node->op), node->name);
+                for (int k = 0; k < GGML_MAX_SRC; k++) {
+                    struct ggml_tensor * src = node->src[k];
+                    if (src == NULL) {
+                        continue;
+                    }
+                    printf("src %d: %s, ", k, src->name);
+                }
+                printf("\n");
+            }
+            // GGML_ABORT("debugging");
 #endif
 
         // copy the input tensors to the split backend
@@ -1484,7 +1484,7 @@ static enum ggml_status ggml_backend_sched_compute_splits(ggml_backend_sched_t s
             // in the splits of reload in sparkinfer we dont need to copy the gpu inputs back to GPU
             // for now we ensure there is only reload splits would have the input of gpu_ffn tensors
             // this is quite hacky, but it works for now [GTODO] we need a better way to handle this
-            if (strstr(input->name, "ffn_gpu_up") || strstr(input->name, "ffn_gpu_down") || strstr(input->name, "ffn_gpu_gate")) {
+            if (strstr(input->name, "ffn_gate.weight") || strstr(input->name, "ffn_up.weight") || strstr(input->name, "ffn_down_t.weight")) {
                 // printf("%s: %s\n", input->name, ggml_backend_buffer_name(input->buffer));
                 // printf("skipping copy of %s from %s to %s\n", input->name, ggml_backend_name(input_backend), ggml_backend_name(split_backend));
                 continue;

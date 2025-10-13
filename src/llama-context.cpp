@@ -1275,6 +1275,7 @@ llm_graph_result_ptr llama_context::graph_build(
                 /*.ubatch      =*/ ubatch,
                 /*.sched       =*/ sched.get(),
                 /*.backend_cpu =*/ backend_cpu,
+                /*.backend_gpu =*/ backends[0].get(),
                 /*.cvec        =*/ &cvec,
                 /*.loras       =*/ &loras,
                 /*.memory      =*/ memory.get(),

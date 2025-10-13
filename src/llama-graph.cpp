@@ -448,6 +448,7 @@ llm_graph_context::llm_graph_context(const llm_graph_params & params) :
     ctx0             (params.ctx),
     sched            (params.sched),
     backend_cpu      (params.backend_cpu),
+    backend_gpu      (params.backend_gpu),
     cvec             (params.cvec),
     loras            (params.loras),
     memory           (params.memory),
@@ -823,12 +824,12 @@ ggml_tensor * llm_graph_context::build_reload(ggml_context * ctx, ggml_cgraph * 
     // GTODO: do we need a node to combine these three tensors? or just build_forward_expand them one by one?
     if(spif_cache->gpu_ffn_gate_cache){
         ggml_build_forward_expand(gf, done_reload_gate);
-        ggml_backend_sched_set_tensor_backend(sched, done_reload_gate, backend_cpu);
+        ggml_backend_sched_set_tensor_backend(sched, done_reload_gate, backend_gpu);
     }
     ggml_build_forward_expand(gf, done_reload_up);
-    ggml_backend_sched_set_tensor_backend(sched, done_reload_up, backend_cpu);
+    ggml_backend_sched_set_tensor_backend(sched, done_reload_up, backend_gpu);
     ggml_build_forward_expand(gf, done_reload_down);
-    ggml_backend_sched_set_tensor_backend(sched, done_reload_down, backend_cpu);
+    ggml_backend_sched_set_tensor_backend(sched, done_reload_down, backend_gpu);
     return nullptr;
 
     // ggml_tensor * result = ggml_new_tensor_2d(ctx, spif_cache->gpu_ffn_up_cache->type, spif_cache->gpu_ffn_up_cache->ne[0], spif_cache->gpu_ffn_up_cache->ne[1]);
@@ -873,19 +874,9 @@ ggml_tensor * llm_graph_context::build_sparse_ffn(
             ggml_build_forward_expand(gf, next_sparse_idx);
 
             R_next->sparse_idx = next_sparse_idx;
-
-            // build reload
-            if(!next_full_gpu){
-                ggml_tensor * done_reload = build_reload(ctx0, gf, spif_layer_next, next_sparse_idx, il+1);
-                // cb(done_reload, "ffn_reload_all", il+1);
-                // ggml_backend_sched_set_tensor_backend(sched, done_reload, backend_cpu);
-                // ggml_build_forward_expand(gf, done_reload);
-            }
         }
 
         // sparse_ffn  GTODO: use integrated kernel?
-        ggml_tensor * cur = nullptr;
-
         ggml_tensor * up     = L->ffn_up;
         ggml_tensor * gate   = L->ffn_gate;
         ggml_tensor * down   = L->ffn_down_t;
@@ -921,45 +912,105 @@ ggml_tensor * llm_graph_context::build_sparse_ffn(
             return tensor;
         };
 
+        ggml_tensor * cur_up = nullptr;
+        ggml_tensor * cur_gate = nullptr;
+        ggml_tensor * ffn_hidden = nullptr;
+        ggml_tensor * ffn_output = nullptr;
+        if (full_gpu){
+            gpu_neu_idx = nullptr;
+            gpu_neu_mask = nullptr;
+        }
         {
-            ggml_tensor * up_out = build_sparse_mul_mat(input, up, gpu_up, gpu_neu_idx, gpu_neu_mask, sparse_idx, "up", il, full_gpu); 
-            if(up_b){
-                up_out = ggml_add(ctx0, up_out, up_b);
-                cb(up_out, "ffn_up_b", il);
+            // gpu_up_proj
+            cur_up = ggml_mul_mat_sparse(ctx0, gpu_up, input, sparse_idx, gpu_neu_idx);
+            cb(cur_up, "ffn_up_sparse_gpu", il);
+            ggml_build_forward_expand(gf, cur_up);
+            
+            if (gate) {
+                cur_gate = ggml_mul_mat_sparse(ctx0, gpu_gate, input, sparse_idx, gpu_neu_idx);
+                cb(cur_gate, "ffn_gate_sparse_gpu", il);
+                ggml_build_forward_expand(gf, cur_gate);
             }
 
-            if(gate){
-                ggml_tensor * gate_out = build_sparse_mul_mat(input, gate, gpu_gate, gpu_neu_idx, gpu_neu_mask, sparse_idx, "gate", il, full_gpu); 
-                
-                if(gate_b){
-                    gate_out = ggml_add(ctx0, gate_out, gate_b);
-                    cb(gate_out, "ffn_gate_b", il);
+            // build reload
+            if(il != n_layer - 1 && !next_full_gpu) ggml_tensor * done_reload = build_reload(ctx0, gf, spif_layer_next, R_next->sparse_idx, il+1);
+
+            // cpu_up_proj
+            if (!full_gpu){
+                ggml_tensor * cpu_up_proj   = ggml_mul_mat_sparse(ctx0, up, input, sparse_idx, gpu_neu_mask);
+                cb(cpu_up_proj, "ffn_up_sparse_cpu", il);
+                ggml_build_forward_expand(gf, cpu_up_proj);
+
+                ggml_tensor * cpu_gate_proj = nullptr;
+                if (gate)  {
+                    cpu_gate_proj = ggml_mul_mat_sparse(ctx0, gate, input, sparse_idx, gpu_neu_mask);
+                    cb(cpu_gate_proj, "ffn_gate_sparse_cpu", il);
+                    ggml_build_forward_expand(gf, cpu_gate_proj);
+                }
+
+            // merge
+                cur_up = ggml_add(ctx0, cur_up, cpu_up_proj);
+                cb(cur_up, "ffn_up_sparse_merged", il);
+                ggml_backend_sched_set_tensor_backend(sched, cur_up, backend_gpu);  // this node should be assign to GPU if the graph-backend-assign function works well, but weirdly it doesn't, so we force it here
+
+                if (gate){
+                    cur_gate = ggml_add(ctx0, cur_gate, cpu_gate_proj);
+                    cb(cur_gate, "ffn_gate_sparse_merged", il);
+                    ggml_backend_sched_set_tensor_backend(sched, cur_up, backend_gpu);
+                }
+            }
+
+            // merge and compute down on gpu
+            if (up_b){
+                cur_up = ggml_add(ctx0, cur_up, up_b);
+                cb(cur_up, "ffn_up_b", il);
+            }
+
+            if (gate){
+                if (gate_b){
+                    cur_gate = ggml_add(ctx0, cur_gate, gate_b);
+                    cb(cur_gate, "ffn_gate_b", il);
                 }
 
                 // we only support par gate_op
                 if (type_gate == LLM_FFN_PAR){
-                    gate_out = act_fn(gate_out, "ffn_gate_act");
+                    cur_gate = act_fn(cur_gate, "ffn_gate_act");
 
-                    gate_out = ggml_mul(ctx0, gate_out, up_out);
-                    cb(gate_out, "ffn_gate_par",il);
+                    ffn_hidden = ggml_mul(ctx0, cur_gate, cur_up);
+                    cb(ffn_hidden, "ffn_gate_par",il);
                 }else{
                     GGML_ASSERT(false && "unsupported gate type");
                 }
-                
-                cur = gate_out;
             }else{
-                cur = act_fn(up_out, "ffn_up_act");
+                ffn_hidden = act_fn(cur_up, "ffn_up_act");
             }
 
-            cur = build_sparse_axpy(cur, down, gpu_down, gpu_neu_idx, gpu_neu_mask, sparse_idx, "down", il, full_gpu); 
+            // gpu_down_proj
+            ggml_tensor * gpu_down_proj = ggml_axpy_sparse(ctx0, gpu_down, ffn_hidden, sparse_idx, gpu_neu_idx);
+            cb(gpu_down_proj, "ffn_down_sparse_gpu", il);
+            ggml_build_forward_expand(gf, gpu_down_proj);
+
+            // cpu_down_proj
+            ggml_tensor * cpu_down_proj = nullptr;
+            if (!full_gpu){
+                cpu_down_proj = ggml_axpy_sparse(ctx0, down, ffn_hidden, sparse_idx, gpu_neu_mask); 
+                cb(cpu_down_proj, "ffn_down_sparse_cpu", il);
+                ggml_build_forward_expand(gf, cpu_down_proj);
+            }
+
+            if (!full_gpu) {
+                ffn_output = ggml_add(ctx0, cpu_down_proj, gpu_down_proj);
+                cb(ffn_output, "ffn_down_sparse_merged", il);
+            }else{
+                ffn_output = gpu_down_proj;
+            }
 
             if (down_b) {
-                cur = ggml_add(ctx0, cur, down_b);
-                cb(cur, "ffn_down_b", il);
+                ffn_output = ggml_add(ctx0, ffn_output, down_b);
+                cb(ffn_output, "ffn_down_b", il);
             }
         }
-        
-        return cur;
+        return ffn_output;
     }
 
 ggml_tensor * llm_graph_context::build_moe_ffn(

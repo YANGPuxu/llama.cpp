@@ -2068,6 +2068,42 @@ static void ggml_cuda_axpy_sparse(ggml_backend_cuda_context & ctx, const ggml_te
     }
 }
 
+static void reload_weights(
+              ggml_backend_cuda_context & ctx,
+              struct ggml_tensor * tensor) 
+{
+          struct ggml_tensor * gpu_weights     = tensor->src[0];
+          struct ggml_tensor * cpu_weights     = tensor->src[1];
+    const struct ggml_tensor * sparse_idx      = tensor->src[2];
+          struct ggml_tensor * gpu_neu_idx     = tensor->src[3];
+          struct ggml_tensor * gpu_neu_mask    = tensor->src[4];
+          struct ggml_tensor * DFR_score       = tensor->src[5];
+          // and other mappings
+
+    // // debug: print out all src buffer locations
+    // printf("reload_weights: \n");
+    // for (int i = 0; i < 6; i++) {
+    //     struct ggml_tensor * t = tensor->src[i];
+    //     printf("  src[%d]: %s, buffer: %s\n", i, t->name,
+    //         ggml_backend_buffer_name(t->buffer));
+    // }
+    // GGML_ABORT("debugging");
+    // check weights is on GPU, while others are on CPU or CUDA_Host(in cpu pinned memory)
+    GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_weights->buffer), "CUDA0") != NULL);
+    GGML_ASSERT(strstr(ggml_backend_buffer_name(cpu_weights->buffer), "CPU") != NULL);
+
+    // // we add reload into the splits where it need gpu_neu_idx, sparse_idx as CUDA backend input, but we need them to be on CPU or CUDA_Host
+    // // [GTODO] we copy them back in here?
+    // //         or just compute the reload plan in CUDA kernel?? 
+    // GGML_ASSERT(strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CPU") || strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CUDA_Host"));
+    // GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_neu_idx->buffer), "CPU") || strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CUDA_Host"));
+    // GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_neu_mask->buffer), "CPU") || strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CUDA_Host"));
+    // GGML_ASSERT(strstr(ggml_backend_buffer_name(DFR_score->buffer), "CPU") || strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CUDA_Host"));
+
+    // GTODO[reload]: here is the real implementation of reloading weights, updating DFR_score and gpu_neu_idx
+
+}
+
 static void ggml_cuda_mul_mat_id(ggml_backend_cuda_context & ctx, ggml_tensor * dst) {
     const ggml_tensor * src0 = dst->src[0];
     const ggml_tensor * src1 = dst->src[1];
@@ -2363,6 +2399,9 @@ static bool ggml_cuda_compute_forward(ggml_backend_cuda_context & ctx, struct gg
             //     int t_e1 =ggml_time_ms();
             //     printf("[DEBUG_CUDA]    axpy: tensor->name=%s, time=%lld\n", dst->name, t_e1-t_s1);
             // }
+            break;
+        case GGML_OP_RELOAD_WEIGHTS:
+            reload_weights(ctx, dst);
             break;
         case GGML_OP_MUL_MAT_ID:
             ggml_cuda_mul_mat_id(ctx, dst);
@@ -2759,14 +2798,14 @@ static void evaluate_and_capture_cuda_graph(ggml_backend_cuda_context * cuda_ctx
                 }
 
 #ifndef NDEBUG
-                assert(node->buffer->buft == ggml_backend_cuda_buffer_type(cuda_ctx->device));
-                for (int j = 0; j < GGML_MAX_SRC; j++) {
-                    if (node->src[j] != nullptr) {
-                        assert(node->src[j]->buffer);
-                        assert(node->src[j]->buffer->buft == ggml_backend_cuda_buffer_type(cuda_ctx->device) ||
-                               ggml_backend_buft_is_cuda_split(node->src[j]->buffer->buft));
-                    }
-                }
+                // assert(node->buffer->buft == ggml_backend_cuda_buffer_type(cuda_ctx->device));
+                // for (int j = 0; j < GGML_MAX_SRC; j++) {
+                //     if (node->src[j] != nullptr) {
+                //         assert(node->src[j]->buffer);
+                //         assert(node->src[j]->buffer->buft == ggml_backend_cuda_buffer_type(cuda_ctx->device) ||
+                //                ggml_backend_buft_is_cuda_split(node->src[j]->buffer->buft));
+                //     }
+                // }
 #endif
 
 #ifdef USE_NVTX

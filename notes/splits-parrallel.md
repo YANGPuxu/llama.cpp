@@ -53,10 +53,10 @@ CUDA 后端对应的计算逻辑，按道理 CPU 发送完 CUDA 计算图后就�
     }
 ```
 
-2. 只并行 cuda 计算和 cpu 计算
-    - [TODO]先规划好 splits 的顺序
-    - 让 GPU splits 发送计算图给 cuda 后立刻返回
-    - 先把 reload 算子放在 CUDA 后端，
+2. 只并行 cuda 计算和 cpu 计算 *目前采用这种*
+    - ~~[TODO]先规划好 splits 的顺序~~
+    - ~~[TODO]先把 reload 算子放在 CUDA 后端~~
+    - [TODO] 改写 splits 同步机制，加入依赖？
 
 
 ---
