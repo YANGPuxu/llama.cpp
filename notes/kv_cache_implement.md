@@ -38,3 +38,5 @@
 ## 对于 Reload 节点的启发
 
 `reload` 并不是简单的 KV Cache-like view 加 `cpy`，我认为需要新建 `GGML_OP_RELOAD`，并在 CPU 计算后端完成 `reload` 的具体跨后端内存拷贝操作。
+
+[YPX] [C] 是的，必须这么做。
