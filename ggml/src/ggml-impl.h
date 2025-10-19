@@ -303,6 +303,11 @@ struct ggml_cgraph {
     struct ggml_hash_set visited_hash_set;
 
     enum ggml_cgraph_eval_order order;
+
+    // sparkinfer splits parrallel support
+    int parallel_node_id;  // if this is -1, then the graph is not parallel
+    void * parallel_event; // nullptr if not parallel (ggml_backend_event_t)
+    bool need_waiting;    // whether the graph need to wait for the parallel event
 };
 
 // returns a slice of cgraph with nodes [i0, i1)

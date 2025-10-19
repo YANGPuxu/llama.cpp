@@ -917,6 +917,19 @@ static void ggml_backend_sched_set_if_supported(ggml_backend_sched_t sched, stru
 
 // assigns backends to ops and splits the graph into subgraphs that can be computed on the same backend
 static void ggml_backend_sched_split_graph(ggml_backend_sched_t sched, struct ggml_cgraph * graph) {
+
+#ifdef SPIF_PIPELINE
+    // Sparkinfer: free old events
+    for (int i = 0; i < sched->n_splits; i++) {  
+        if (sched->splits[i].graph.parallel_event != nullptr) {  
+            ggml_backend_event_t evt = (ggml_backend_event_t)sched->splits[i].graph.parallel_event;  
+            // printf("Freeing old event: event=%p, device=%p, context=%p\n", evt, evt->device, evt->context);  
+            ggml_backend_event_free(evt);  
+            sched->splits[i].graph.parallel_event = nullptr;  
+        }  
+    }  
+#endif
+
     // reset splits
     sched->n_splits = 0;
     sched->n_graph_inputs = 0;
@@ -1336,6 +1349,11 @@ static void ggml_backend_sched_split_graph(ggml_backend_sched_t sched, struct gg
             sched->node_backend_ids[graph_copy->n_nodes] = tensor_backend_id(graph->nodes[j]);
             graph_copy->nodes[graph_copy->n_nodes++] = graph->nodes[j];
         }
+
+        // SparkInfer: initialized parallel-support member in cgraph
+        split->graph.parallel_node_id = -1;
+        split->graph.need_waiting = false;
+        split->graph.parallel_event = nullptr;
     }
 
     if (sched->n_copies > 1) {
@@ -1419,9 +1437,9 @@ static bool ggml_backend_sched_alloc_splits(ggml_backend_sched_t sched) {
 const uint32_t colors[] = {0xff808080};
 const int num_colors = sizeof(colors)/sizeof(uint32_t);
 
-nvtxRangeId_t nvtx_init(char * name, char * extra_info){
+nvtxRangeId_t nvtx_init(int idint, char * name, char * extra_info){
     char full_name[64];
-    snprintf(full_name, sizeof(full_name), "%s_%s", name, extra_info);
+    snprintf(full_name, sizeof(full_name), "split%d: %s_%s", idint, name, extra_info);
 
     int color_id = 0;
 
@@ -1435,7 +1453,7 @@ nvtxRangeId_t nvtx_init(char * name, char * extra_info){
 
     // Add tensor information as message
     char message[256];
-    snprintf(message, sizeof(message), "%s_%s", full_name, "_SYNC");
+    snprintf(message, sizeof(message), "%s", full_name);
     message[sizeof(message)-1] = '\0';
     eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;
     eventAttrib.message.ascii = message;
@@ -1447,6 +1465,11 @@ nvtxRangeId_t nvtx_init(char * name, char * extra_info){
 
 static enum ggml_status ggml_backend_sched_compute_splits(ggml_backend_sched_t sched) {
     struct ggml_backend_sched_split * splits = sched->splits;
+
+    // sparkinfer: use event to enable parallel split computing
+#ifdef SPIF_PIPELINE
+    ggml_backend_event_t parallel_event = nullptr;
+#endif
 
     for (int i = 0; i < sched->n_splits; i++) {
         struct ggml_backend_sched_split * split = &splits[i];
@@ -1474,6 +1497,18 @@ static enum ggml_status ggml_backend_sched_compute_splits(ggml_backend_sched_t s
                 printf("\n");
             }
             // GGML_ABORT("debugging");
+#endif
+
+#ifdef SPIF_PIPELINE
+        // Sparkinfer: if this is a parallelable CPU split, we need to wait for the parallel event
+        if (split->graph.need_waiting) {
+            GGML_ASSERT(ggml_backend_dev_type(split_backend->device) == GGML_BACKEND_DEVICE_TYPE_CPU && "need_waiting only in cpu backend");
+            if(parallel_event != nullptr){
+                ggml_backend_event_synchronize(parallel_event);
+            }else{
+                GGML_ABORT("parallel_event is nullptr in a parallelable split");
+            }
+        }
 #endif
 
         // copy the input tensors to the split backend
@@ -1509,6 +1544,15 @@ static enum ggml_status ggml_backend_sched_compute_splits(ggml_backend_sched_t s
                 // else {
                 //     ggml_backend_synchronize(split_backend);
                 // }
+
+#ifdef SPIF_PIPELINE
+                // Sparkinfer: copy input
+                if (split->graph.need_waiting) {
+                    ggml_backend_tensor_copy(input, input_cpy);
+                    continue;
+                }
+#endif
+
                 // try async copy, but if not possible, we can still use a sync copy without synchronizing the dst backend, since we handle the synchronization here with multiple copies and events
                 // TODO: add public function to facilitate this, since applications do not have direct access to the backend interface
                 if (!split_backend->iface.cpy_tensor_async || !split_backend->iface.cpy_tensor_async(input_backend, split_backend, input, input_cpy)) {
@@ -1562,6 +1606,13 @@ static enum ggml_status ggml_backend_sched_compute_splits(ggml_backend_sched_t s
                 j0 = j1;
             }
         }
+
+#ifdef SPIF_PIPELINE
+        // Sparkinfer: if this is a parallelable GPU split, get parallel_event,and this variable would be used in next few split
+        if (split->graph.parallel_node_id != -1){
+            parallel_event = (ggml_backend_event_t)(split->graph.parallel_event);
+        }
+#endif
 
         // // record the event of this copy
         // if (split->n_inputs > 0) {
@@ -1720,6 +1771,60 @@ enum ggml_status ggml_backend_sched_graph_compute(ggml_backend_sched_t sched, st
     return err;
 }
 
+// Sparkinfer: in this function, we design the parallel strategy for splits
+enum ggml_status ggml_backend_sched_splits_parallel(ggml_backend_sched_t sched){
+    for (int i = 0;i < sched->n_splits;i++){
+        ggml_backend_sched_split * split = &sched->splits[i];
+        ggml_tensor * final_node = split->graph.nodes[split->graph.n_nodes - 1];
+
+        // free the event if exists
+        if (split->graph.parallel_event != nullptr){
+            ggml_backend_event_free((ggml_backend_event_t)(split->graph.parallel_event));
+            split->graph.parallel_event = nullptr;
+        }
+
+        // we find that the split ends with mul_mat_sparse and axpy_sparse is usually parallelable [GTODO: verify this]
+        if (final_node->op == GGML_OP_MUL_MAT_SPARSE || final_node->op == GGML_OP_AXPY_SPARSE 
+            || (final_node->op == GGML_OP_RELOAD_WEIGHTS && split->graph.n_nodes > 3 ))  // the RELOAD_WEIGHTS split somehow stick to the end of the GPU parallel graph
+            {
+            // check the backend of the node
+            ggml_backend_t backend = ggml_backend_sched_get_tensor_backend(sched, final_node);
+
+            // for GPU split, we need to mark the parallel node
+            if (ggml_backend_dev_type(backend->device) == GGML_BACKEND_DEVICE_TYPE_GPU){
+                // up-search for the parallel node
+                for (int j = split->graph.n_nodes - 1; j >= 0; j--){
+                    ggml_tensor * node = split->graph.nodes[j];
+                    if ((node->op == GGML_OP_MUL && strstr(node->name, "ffn_norm")) // the up-projection split
+                        || (node->op == GGML_OP_MUL && strstr(node->name, "ffn_gate_par")) // the down-projection split (gated ffn)
+                        || (node->op == GGML_OP_UNARY && strstr(node->name, "ffn_up_act"))) // the down-projection split (up-only ffn)
+                    {
+                        split->graph.parallel_node_id = j;
+                        // printf("split %d on GPU marked parallel node %d (%s)\n", i, j, node->name);
+                        break;
+                    }
+                    else{
+                        continue;
+                    }
+                }
+                if (split->graph.parallel_node_id == -1){
+                    GGML_ASSERT("should have found a parallel node");
+                    // return GGML_STATUS_FAIlED;
+                }
+            }
+
+            // for CPU split, we directly mark it by setting need_waiting to true
+            if (ggml_backend_dev_type(backend->device) == GGML_BACKEND_DEVICE_TYPE_CPU){
+                split->graph.need_waiting = true;
+                // printf("split %d on CPU marked need_waiting\n", i);
+            }
+            
+        }
+    }
+    // GGML_ABORT("debugging");
+    return GGML_STATUS_SUCCESS;
+}
+
 enum ggml_status ggml_backend_sched_graph_compute_async(ggml_backend_sched_t sched, struct ggml_cgraph * graph) {
     if (!sched->is_reset && !sched->is_alloc) {
         ggml_backend_sched_reset(sched);
@@ -1730,6 +1835,14 @@ enum ggml_status ggml_backend_sched_graph_compute_async(ggml_backend_sched_t sch
             return GGML_STATUS_ALLOC_FAILED;
         }
     }
+
+#ifdef SPIF_PIPELINE
+    // Sparkinfer: design parallel strategy for splits
+    enum ggml_status par_status = ggml_backend_sched_splits_parallel(sched);
+    if (par_status != GGML_STATUS_SUCCESS){
+        return par_status;
+    }
+#endif
 
     return ggml_backend_sched_compute_splits(sched);
 }

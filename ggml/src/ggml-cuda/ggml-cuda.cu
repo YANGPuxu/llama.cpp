@@ -2783,8 +2783,13 @@ static void update_cuda_graph_executable(ggml_backend_cuda_context * cuda_ctx) {
 }
 #endif
 
-static void evaluate_and_capture_cuda_graph(ggml_backend_cuda_context * cuda_ctx, ggml_cgraph * cgraph,
+// Sparkinfer: we need this function, but it is defined later, so we declare it here.
+static ggml_backend_event_t ggml_backend_cuda_device_event_new(ggml_backend_dev_t dev);
+static void ggml_backend_cuda_event_record(ggml_backend_t backend, ggml_backend_event_t event);
+
+static void evaluate_and_capture_cuda_graph(ggml_backend_t backend, ggml_cgraph * cgraph,
     bool & graph_evaluated_or_captured, bool & use_cuda_graph, bool & cuda_graph_update_required) {
+    ggml_backend_cuda_context * cuda_ctx = (ggml_backend_cuda_context *)backend->context;
 
     while (!graph_evaluated_or_captured) {
         // Only perform the graph execution if CUDA graphs are not enabled, or we are capturing the graph.
@@ -2819,6 +2824,21 @@ static void evaluate_and_capture_cuda_graph(ggml_backend_cuda_context * cuda_ctx
                     GGML_LOG_ERROR("%s: op not supported %s (%s)\n", __func__, node->name, ggml_op_name(node->op));
                 }
                 GGML_ASSERT(ok);
+
+#ifdef SPIF_PIPELINE
+                // Sparkinfer: create and record event after the kernel of parallel node
+                if (i == cgraph->parallel_node_id) {
+                    ggml_backend_event_t parallel_event = ggml_backend_cuda_device_event_new(backend->device);
+
+                    ggml_backend_cuda_event_record(backend, parallel_event);
+
+                    if (cgraph->parallel_event != nullptr) {
+                        GGML_ASSERT("cgraph->parallel_event is not null");
+                    } else {
+                        cgraph->parallel_event = (void *) parallel_event;
+                    }
+                }
+#endif
             }
         }
 
@@ -2922,7 +2942,7 @@ static enum ggml_status ggml_backend_cuda_graph_compute(ggml_backend_t backend, 
 
     bool graph_evaluated_or_captured = false;
 
-    evaluate_and_capture_cuda_graph(cuda_ctx, cgraph, graph_evaluated_or_captured, use_cuda_graph, cuda_graph_update_required);
+    evaluate_and_capture_cuda_graph(backend, cgraph, graph_evaluated_or_captured, use_cuda_graph, cuda_graph_update_required);
 
     return GGML_STATUS_SUCCESS;
 }

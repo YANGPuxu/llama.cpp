@@ -2,6 +2,9 @@
 
 // ggml-backend internal header
 
+// Sparkinfer: a demo switch to enable pipeline optimization in backend scheduler
+#define SPIF_PIPELINE 1
+
 #include "ggml-backend.h"
 
 #ifdef  __cplusplus
