@@ -1,6 +1,7 @@
 #include "ggml-cuda.h"
 #include "ggml-impl.h"
 #include "ggml-backend-impl.h"
+#include "ggml-spif.h"
 
 #include "ggml-cuda/common.cuh"
 #include "ggml-cuda/acc.cuh"
@@ -2092,19 +2093,13 @@ static void reload_weights(
     GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_weights->buffer), "CUDA0") != NULL);
     GGML_ASSERT(strstr(ggml_backend_buffer_name(cpu_weights->buffer), "CPU") != NULL);
 
-    float decay_alpha = *reinterpret_cast<float *>(&tensor->op_params[0]);
-    int32_t layer_group_size = tensor->op_params[1];
+    ggml_spif_context * spif_ctx = reinterpret_cast<ggml_spif_context *>(tensor->op_params[0]);
+    GGML_ASSERT(spif_ctx != NULL);
+    
+    reload_plan_result * rp = ggml_spif_reload_plan(spif_ctx, tensor);
 
-    // // we add reload into the splits where it need gpu_neu_idx, sparse_idx as CUDA backend input, but we need them to be on CPU or CUDA_Host
-    // // [GTODO] we copy them back in here?
-    // //         or just compute the reload plan in CUDA kernel?? 
-    // GGML_ASSERT(strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CPU") || strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CUDA_Host"));
-    // GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_neu_idx->buffer), "CPU") || strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CUDA_Host"));
-    // GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_neu_mask->buffer), "CPU") || strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CUDA_Host"));
-    // GGML_ASSERT(strstr(ggml_backend_buffer_name(DFR_score->buffer), "CPU") || strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CUDA_Host"));
-
-    // GTODO[reload]: here is the real implementation of reloading weights, updating DFR_score and gpu_neu_idx
-
+    // 算子 3： execute reload weights
+    //      [TODO] how to sync reload before ffn computing?
 }
 
 static void ggml_cuda_mul_mat_id(ggml_backend_cuda_context & ctx, ggml_tensor * dst) {

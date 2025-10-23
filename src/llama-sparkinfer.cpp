@@ -207,8 +207,7 @@ ggml_tensor * sparkInfer_layer_cache:: build_reload_impl(ggml_context * ctx, ggm
     ggml_tensor * result = ggml_new_tensor_2d(ctx, gpu_ffn_up_cache->type, gpu_ffn_up_cache->ne[0], gpu_ffn_up_cache->ne[1]);
 
     // added reload params
-    memcpy(&result->op_params[0], &decay_ratio, sizeof(float));
-    memcpy(&result->op_params[1], &layer_group_size, sizeof(int32_t));
+    memcpy(&result->op_params[0], this, sizeof(sparkInfer_layer_cache*)); // Pass the pointer to SparkInfer_layer_cache
     
     result->op = GGML_OP_RELOAD_WEIGHTS;
     result->src[0] = gpu_ffn;
@@ -729,3 +728,26 @@ size_t sparkinfer_load_gpu_split_and_offload_weight(llama_model_loader & ml, lla
     return total_offloaded_bytes;
 }
 
+// this is a C wrapper to call llama-sparkinfer function, used in ggml codebase for relaoding operation
+extern "C" {  
+    reload_plan_result * ggml_spif_reload_plan(ggml_spif_context* ctx, ggml_tensor * tensor) {  
+        sparkInfer_layer_cache * spif_cache = reinterpret_cast<sparkInfer_layer_cache*>(ctx);  
+        return spif_cache->spif_reload_plan(tensor);  
+    }  
+}
+
+// 第一个和第二个算子
+reload_plan_result * sparkInfer_layer_cache:: spif_reload_plan(ggml_tensor * tensor) {
+    // Extraction
+          struct ggml_tensor * gpu_weights     = tensor->src[0];
+          struct ggml_tensor * cpu_weights     = tensor->src[1];
+    const struct ggml_tensor * sparse_idx      = tensor->src[2];  // this is on GPU, copy it back to CPU
+          struct ggml_tensor * gpu_neu_idx     = tensor->src[3];  // might be replaced by directly using spif members
+          struct ggml_tensor * gpu_neu_mask    = tensor->src[4];  // might be replaced by directly using spif members
+          struct ggml_tensor * DFR_score       = tensor->src[5];  // might be replaced by directly using spif members
+    
+    //...
+    
+    reload_plan_result * rpr = new reload_plan_result();
+    return rpr;
+}
