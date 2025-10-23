@@ -205,6 +205,10 @@ ggml_tensor * sparkInfer_layer_cache:: build_reload_impl(ggml_context * ctx, ggm
 
     // ggml_tensor * result = ggml_view_2d(ctx, gpu_ffn_up_cache, gpu_ffn_up_cache->ne[0], gpu_ffn_up_cache->ne[1], 0, 0);
     ggml_tensor * result = ggml_new_tensor_2d(ctx, gpu_ffn_up_cache->type, gpu_ffn_up_cache->ne[0], gpu_ffn_up_cache->ne[1]);
+
+    // added reload params
+    memcpy(&result->op_params[0], &decay_ratio, sizeof(float));
+    memcpy(&result->op_params[1], &layer_group_size, sizeof(int32_t));
     
     result->op = GGML_OP_RELOAD_WEIGHTS;
     result->src[0] = gpu_ffn;

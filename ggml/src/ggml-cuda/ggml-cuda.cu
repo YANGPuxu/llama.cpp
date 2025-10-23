@@ -2092,6 +2092,9 @@ static void reload_weights(
     GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_weights->buffer), "CUDA0") != NULL);
     GGML_ASSERT(strstr(ggml_backend_buffer_name(cpu_weights->buffer), "CPU") != NULL);
 
+    float decay_alpha = *reinterpret_cast<float *>(&tensor->op_params[0]);
+    int32_t layer_group_size = tensor->op_params[1];
+
     // // we add reload into the splits where it need gpu_neu_idx, sparse_idx as CUDA backend input, but we need them to be on CPU or CUDA_Host
     // // [GTODO] we copy them back in here?
     // //         or just compute the reload plan in CUDA kernel?? 
