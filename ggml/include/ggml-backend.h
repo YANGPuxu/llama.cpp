@@ -123,6 +123,14 @@ extern "C" {
     GGML_API void                 ggml_backend_event_synchronize(ggml_backend_event_t event);
     GGML_API void                 ggml_backend_event_wait(ggml_backend_t backend, ggml_backend_event_t event);
 
+    // Sparkinfer: node event
+    struct spif_node_event {
+        ggml_backend_event_t event;
+        int64_t              record_or_wait; // 0 = record, 1 = wait
+    };
+
+    typedef struct spif_node_event spif_node_event;
+
     //
     // Backend device
     //

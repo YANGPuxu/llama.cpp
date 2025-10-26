@@ -82,7 +82,7 @@ nvtxRangeId_t nvtx_init(char * name){
 
     // Add tensor information as message
     char message[256];
-    snprintf(message, sizeof(message), "[t%d] %s ", 1, full_name);
+    snprintf(message, sizeof(message), "%s ", full_name);
     message[sizeof(message)-1] = '\0';
     eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;
     eventAttrib.message.ascii = message;
@@ -2796,6 +2796,19 @@ static void evaluate_and_capture_cuda_graph(ggml_backend_t backend, ggml_cgraph 
             for (int i = 0; i < cgraph->n_nodes; i++) {
                 ggml_tensor * node = cgraph->nodes[i];
 
+#ifdef SPIF_PIPELINE
+                // Sparkinfer: wait for the parallel event before computing the next node
+                if (node->extra != nullptr) {
+                    spif_node_event * node_event = (spif_node_event *) node->extra;
+                    if(node_event->record_or_wait == 1){
+                        ggml_backend_event_t parallel_event = (ggml_backend_event_t) node_event->event;
+                        GGML_ASSERT(parallel_event != nullptr);
+                        ggml_backend_event_synchronize(parallel_event);
+                        delete(node_event); // free the spif_node_event struct here
+                    }
+                }
+#endif
+
                 if (ggml_is_empty(node) || node->op == GGML_OP_RESHAPE || node->op == GGML_OP_TRANSPOSE || node->op == GGML_OP_VIEW || node->op == GGML_OP_PERMUTE || node->op == GGML_OP_NONE) {
                     continue;
                 }
@@ -2824,16 +2837,13 @@ static void evaluate_and_capture_cuda_graph(ggml_backend_t backend, ggml_cgraph 
                 GGML_ASSERT(ok);
 
 #ifdef SPIF_PIPELINE
-                // Sparkinfer: create and record event after the kernel of parallel node
-                if (i == cgraph->parallel_node_id) {
-                    ggml_backend_event_t parallel_event = ggml_backend_cuda_device_event_new(backend->device);
-
-                    ggml_backend_cuda_event_record(backend, parallel_event);
-
-                    if (cgraph->parallel_event != nullptr) {
-                        GGML_ASSERT("cgraph->parallel_event is not null");
-                    } else {
-                        cgraph->parallel_event = (void *) parallel_event;
+                // Sparkinfer: record the event after the kernel of the node
+                if (node->extra != nullptr) {
+                    spif_node_event * node_event = (spif_node_event *) node->extra;
+                    if(node_event->record_or_wait == 0){
+                        ggml_backend_event_t parallel_event = (ggml_backend_event_t) node_event->event;
+                        GGML_ASSERT(parallel_event != nullptr);
+                        ggml_backend_cuda_event_record(backend, parallel_event);
                     }
                 }
 #endif

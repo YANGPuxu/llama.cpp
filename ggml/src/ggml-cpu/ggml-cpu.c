@@ -3848,6 +3848,29 @@ static thread_ret_t ggml_graph_compute_thread(void * data) {
 
     for (int node_n = 0; node_n < cgraph->n_nodes && atomic_load_explicit(&tp->abort, memory_order_relaxed) != node_n; node_n++) {
         struct ggml_tensor * node = cgraph->nodes[node_n];
+
+// // at first i tried to put this in here(nodes loop), but that caused cuda illegal memory access errors, so the CPU sync is put back to splits loop
+// #ifdef SPIF_PIPELINE
+//     // Sparkinfer: wait for the parallel event before computing the next node
+//         if (node->extra != NULL) {
+//             spif_node_event * node_event = (spif_node_event *) node->extra;
+//             if (node_event->record_or_wait == 1) {
+//                 ggml_backend_event_t parallel_event = (ggml_backend_event_t) node_event->event;
+//                 GGML_ASSERT(parallel_event != NULL);
+
+//                 // only thread 0 waits for the event
+//                 if (state->ith == 0) {
+//                     printf("thread %d waiting for event %p before computing node %s\n", state->ith, parallel_event, node->name); 
+//                     ggml_backend_event_synchronize(parallel_event);
+//                 }
+//                 // ensure all threads wait for thread 0 to finish waiting
+//                 ggml_barrier(state->threadpool);
+
+//             } else {
+//                 GGML_ABORT("Invalid node event state in CPU graph compute");
+//             }
+//         }
+// #endif
         
 #ifdef USE_NVTX
         nvtxRangeId_t id = nvtx_init(&params, node->name, "CPU");
@@ -3856,6 +3879,16 @@ static thread_ret_t ggml_graph_compute_thread(void * data) {
 #else
         ggml_compute_forward(&params, node);
 #endif
+
+// #ifdef SPIF_PIPELINE
+//         // Sparkinfer: free the spif_node_event struct here
+//         if (node->extra != NULL) {
+//             spif_node_event * node_event = (spif_node_event *) node->extra;
+//             if (params.ith == 0) {
+//                 free(node_event);
+//             }
+//         }
+// #endif
 
         if (state->ith == 0 && cplan->abort_callback &&
                 cplan->abort_callback(cplan->abort_callback_data)) {
