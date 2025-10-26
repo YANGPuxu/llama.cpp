@@ -926,7 +926,8 @@ static const char * GGML_OP_NAME[GGML_OP_COUNT] = {
     "MUL_MAT_SPARSE",
     "AXPY_SPARSE",
 
-    "RELOAD",
+    "RELOAD_PLAN",
+    "RELOAD_EXEC",
     
     "OUT_PROD",
 
@@ -989,7 +990,7 @@ static const char * GGML_OP_NAME[GGML_OP_COUNT] = {
     "OPT_STEP_ADAMW",
 };
 
-static_assert(GGML_OP_COUNT == 85, "GGML_OP_COUNT != 85");
+static_assert(GGML_OP_COUNT == 86, "GGML_OP_COUNT != 86");
 
 static const char * GGML_OP_SYMBOL[GGML_OP_COUNT] = {
     "none",

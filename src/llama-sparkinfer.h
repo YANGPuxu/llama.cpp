@@ -92,8 +92,13 @@ struct sparkInfer_layer_cache {
      */
     bool init(int layer_idx, llama_model& model, llama_layer& layer, ggml_backend_t backend, const std::vector<int64_t>& initial_gpu_neu_idx);
 
-    ggml_tensor * build_reload_impl(ggml_context * ctx, ggml_tensor * sparse_idx, const char * name, const int il);
-    reload_plan_result * spif_reload_plan(ggml_tensor * tensor);
+    // Sparkinfer reload (graph building)
+    ggml_tensor * build_reload_plan(ggml_context * ctx, ggml_tensor * sparse_idx, const int il);
+    ggml_tensor * build_reload_exec(ggml_context * ctx, ggml_tensor * sparse_idx, const char * name, const int il);
+    
+    // Sparkinfer reload (real implementation)
+    bool spif_reload_plan(ggml_tensor * tensor);
+    bool spif_reload_exec(ggml_tensor * tensor);
 
     /**
      * @brief 确保一个神经元在GPU上。如果不在，就执行换入操作。

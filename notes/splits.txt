@@ -1,4 +1,4 @@
-SPLIT 0: backend: 1 CPU # 0 inputs
+ SPLIT 0: backend: 1 CPU # 0 inputs
 node 0 (GET_ROWS): inp_embd | src 0: token_embd.weight, src 1: leaf_2, 
 
  SPLIT 1: backend: 0 CUDA0 # 0 inputs
@@ -46,51 +46,48 @@ node 40 (ADD): pred_down_b-0 | src 0: pred_down-0, src 1: blk.0.ffn_pred_down.bi
 node 41 (UNARY): pred_out-0 | src 0: pred_down_b-0, 
 node 42 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-0 | src 0: blk.0.ffn_gpu_up.weight, src 1: ffn_norm-0, src 2: pred_out-0, 
 node 43 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-0 | src 0: blk.0.ffn_gpu_gate.weight, src 1: ffn_norm-0, src 2: pred_out-0, 
-node 44 (RELOAD): ffn_gate_reload-1 | src 0: blk.1.ffn_gpu_gate.weight, src 1: blk.1.ffn_gate.weight, src 2: pred_out-1, src 3: blk.1.ffn_gpu_neu_idx, src 4: blk.1.ffn_gpu_neu_mask, src 5: blk.1.ffn_dfr_score, 
-node 45 (RELOAD): ffn_up_reload-1 | src 0: blk.1.ffn_gpu_up.weight, src 1: blk.1.ffn_up.weight, src 2: pred_out-1, src 3: blk.1.ffn_gpu_neu_idx, src 4: blk.1.ffn_gpu_neu_mask, src 5: blk.1.ffn_dfr_score, 
-node 46 (RELOAD): ffn_down_reload-1 | src 0: blk.1.ffn_gpu_down_t.weight, src 1: blk.1.ffn_down_t.weight, src 2: pred_out-1, src 3: blk.1.ffn_gpu_neu_idx, src 4: blk.1.ffn_gpu_neu_mask, src 5: blk.1.ffn_dfr_score, 
-node 47 (UNARY): ffn_gate_act-0 | src 0: ffn_gate_sparse_gpu-0, 
-node 48 (MUL): ffn_gate_par-0 | src 0: ffn_gate_act-0, src 1: ffn_up_sparse_gpu-0, 
-node 49 (AXPY_SPARSE): ffn_down_sparse_gpu-0 | src 0: blk.0.ffn_gpu_down_t.weight, src 1: ffn_gate_par-0, src 2: pred_out-0, 
-node 50 (ADD): l_out-0 | src 0: ffn_down_sparse_gpu-0, src 1: ffn_inp-0, 
-node 51 (RMS_NORM): norm-1 | src 0: l_out-0, 
-node 52 (MUL): attn_norm-1 | src 0: norm-1, src 1: blk.1.attn_norm.weight, 
-node 53 (MUL_MAT): Qcur-1 | src 0: blk.1.attn_q.weight, src 1: attn_norm-1, 
-node 54 (RESHAPE): Qcur-1 (reshaped) | src 0: Qcur-1, 
-node 55 (ROPE): Qcur-1 | src 0: Qcur-1 (reshaped), src 1: leaf_4, 
-node 56 (MUL_MAT): Kcur-1 | src 0: blk.1.attn_k.weight, src 1: attn_norm-1, 
-node 57 (RESHAPE): Kcur-1 (reshaped) | src 0: Kcur-1, 
-node 58 (ROPE): Kcur-1 | src 0: Kcur-1 (reshaped), src 1: leaf_4, 
-node 59 (MUL_MAT): Vcur-1 | src 0: blk.1.attn_v.weight, src 1: attn_norm-1, 
-node 60 (RESHAPE): Vcur-1 | src 0: Vcur-1, 
-node 61 (VIEW): cache_k_l1 (view) | src 0: cache_k_l1, 
-node 62 (CPY): cache_k_l1 (view) (copy of Kcur-1) | src 0: Kcur-1, src 1: cache_k_l1 (view), 
-node 63 (RESHAPE): Vcur-1 (reshaped) | src 0: Vcur-1, 
-node 64 (TRANSPOSE): Vcur-1 (reshaped) (transposed) | src 0: Vcur-1 (reshaped), 
-node 65 (VIEW): cache_v_l1 (view) | src 0: cache_v_l1, 
-node 66 (CPY): cache_v_l1 (view) (copy of Vcur-1 (reshaped) (transposed)) | src 0: Vcur-1 (reshaped) (transposed), src 1: cache_v_l1 (view), 
-node 67 (VIEW): cache_v_l1 (view) | src 0: cache_v_l1, 
-node 68 (PERMUTE): cache_v_l1 (view) (permuted) | src 0: cache_v_l1 (view), 
-node 69 (VIEW): cache_k_l1 (view) | src 0: cache_k_l1, 
-node 70 (PERMUTE): cache_k_l1 (view) (permuted) | src 0: cache_k_l1 (view), 
-node 71 (PERMUTE): Qcur-1 (permuted) | src 0: Qcur-1, 
-node 72 (MUL_MAT): node_73 | src 0: cache_k_l1 (view) (permuted), src 1: Qcur-1 (permuted), 
-node 73 (SOFT_MAX): node_74 | src 0: node_73, src 1: leaf_9, 
-node 74 (MUL_MAT): node_75 | src 0: cache_v_l1 (view) (permuted), src 1: node_74, 
-node 75 (PERMUTE):  (permuted) | src 0: node_75, 
-node 76 (CONT): kqv_out-1 | src 0:  (permuted), 
-node 77 (MUL_MAT): attn_out-1 | src 0: blk.1.attn_output.weight, src 1: kqv_out-1, 
-node 78 (ADD): ffn_inp-1 | src 0: attn_out-1, src 1: l_out-0, 
-node 79 (RMS_NORM): norm-1 | src 0: ffn_inp-1, 
-node 80 (MUL): ffn_norm-1 | src 0: norm-1, src 1: blk.1.ffn_norm.weight, 
-node 81 (MUL_MAT): pred_up-2 | src 0: blk.2.ffn_pred_up.weight, src 1: ffn_norm-1, 
-node 82 (ADD): pred_up_b-2 | src 0: pred_up-2, src 1: blk.2.ffn_pred_up.bias, 
-node 83 (UNARY): pred_relu-2 | src 0: pred_up_b-2, 
-node 84 (MUL_MAT): pred_down-2 | src 0: blk.2.ffn_pred_down.weight, src 1: pred_relu-2, 
-node 85 (ADD): pred_down_b-2 | src 0: pred_down-2, src 1: blk.2.ffn_pred_down.bias, 
-node 86 (UNARY): pred_out-2 | src 0: pred_down_b-2, 
-node 87 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-1 | src 0: blk.1.ffn_gpu_up.weight, src 1: ffn_norm-1, src 2: pred_out-1, src 3: blk.1.ffn_gpu_neu_idx, 
-node 88 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-1 | src 0: blk.1.ffn_gpu_gate.weight, src 1: ffn_norm-1, src 2: pred_out-1, src 3: blk.1.ffn_gpu_neu_idx, 
+node 44 (UNARY): ffn_gate_act-0 | src 0: ffn_gate_sparse_gpu-0, 
+node 45 (MUL): ffn_gate_par-0 | src 0: ffn_gate_act-0, src 1: ffn_up_sparse_gpu-0, 
+node 46 (AXPY_SPARSE): ffn_down_sparse_gpu-0 | src 0: blk.0.ffn_gpu_down_t.weight, src 1: ffn_gate_par-0, src 2: pred_out-0, 
+node 47 (ADD): l_out-0 | src 0: ffn_down_sparse_gpu-0, src 1: ffn_inp-0, 
+node 48 (RMS_NORM): norm-1 | src 0: l_out-0, 
+node 49 (MUL): attn_norm-1 | src 0: norm-1, src 1: blk.1.attn_norm.weight, 
+node 50 (MUL_MAT): Qcur-1 | src 0: blk.1.attn_q.weight, src 1: attn_norm-1, 
+node 51 (RESHAPE): Qcur-1 (reshaped) | src 0: Qcur-1, 
+node 52 (ROPE): Qcur-1 | src 0: Qcur-1 (reshaped), src 1: leaf_4, 
+node 53 (MUL_MAT): Kcur-1 | src 0: blk.1.attn_k.weight, src 1: attn_norm-1, 
+node 54 (RESHAPE): Kcur-1 (reshaped) | src 0: Kcur-1, 
+node 55 (ROPE): Kcur-1 | src 0: Kcur-1 (reshaped), src 1: leaf_4, 
+node 56 (MUL_MAT): Vcur-1 | src 0: blk.1.attn_v.weight, src 1: attn_norm-1, 
+node 57 (RESHAPE): Vcur-1 | src 0: Vcur-1, 
+node 58 (VIEW): cache_k_l1 (view) | src 0: cache_k_l1, 
+node 59 (CPY): cache_k_l1 (view) (copy of Kcur-1) | src 0: Kcur-1, src 1: cache_k_l1 (view), 
+node 60 (RESHAPE): Vcur-1 (reshaped) | src 0: Vcur-1, 
+node 61 (TRANSPOSE): Vcur-1 (reshaped) (transposed) | src 0: Vcur-1 (reshaped), 
+node 62 (VIEW): cache_v_l1 (view) | src 0: cache_v_l1, 
+node 63 (CPY): cache_v_l1 (view) (copy of Vcur-1 (reshaped) (transposed)) | src 0: Vcur-1 (reshaped) (transposed), src 1: cache_v_l1 (view), 
+node 64 (VIEW): cache_v_l1 (view) | src 0: cache_v_l1, 
+node 65 (PERMUTE): cache_v_l1 (view) (permuted) | src 0: cache_v_l1 (view), 
+node 66 (VIEW): cache_k_l1 (view) | src 0: cache_k_l1, 
+node 67 (PERMUTE): cache_k_l1 (view) (permuted) | src 0: cache_k_l1 (view), 
+node 68 (PERMUTE): Qcur-1 (permuted) | src 0: Qcur-1, 
+node 69 (MUL_MAT): node_70 | src 0: cache_k_l1 (view) (permuted), src 1: Qcur-1 (permuted), 
+node 70 (SOFT_MAX): node_71 | src 0: node_70, src 1: leaf_9, 
+node 71 (MUL_MAT): node_72 | src 0: cache_v_l1 (view) (permuted), src 1: node_71, 
+node 72 (PERMUTE):  (permuted) | src 0: node_72, 
+node 73 (CONT): kqv_out-1 | src 0:  (permuted), 
+node 74 (MUL_MAT): attn_out-1 | src 0: blk.1.attn_output.weight, src 1: kqv_out-1, 
+node 75 (ADD): ffn_inp-1 | src 0: attn_out-1, src 1: l_out-0, 
+node 76 (RMS_NORM): norm-1 | src 0: ffn_inp-1, 
+node 77 (MUL): ffn_norm-1 | src 0: norm-1, src 1: blk.1.ffn_norm.weight, 
+node 78 (MUL_MAT): pred_up-2 | src 0: blk.2.ffn_pred_up.weight, src 1: ffn_norm-1, 
+node 79 (ADD): pred_up_b-2 | src 0: pred_up-2, src 1: blk.2.ffn_pred_up.bias, 
+node 80 (UNARY): pred_relu-2 | src 0: pred_up_b-2, 
+node 81 (MUL_MAT): pred_down-2 | src 0: blk.2.ffn_pred_down.weight, src 1: pred_relu-2, 
+node 82 (ADD): pred_down_b-2 | src 0: pred_down-2, src 1: blk.2.ffn_pred_down.bias, 
+node 83 (UNARY): pred_out-2 | src 0: pred_down_b-2, 
+node 84 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-1 | src 0: blk.1.ffn_gpu_up.weight, src 1: ffn_norm-1, src 2: pred_out-1, src 3: blk.1.ffn_gpu_neu_idx, 
+node 85 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-1 | src 0: blk.1.ffn_gpu_gate.weight, src 1: ffn_norm-1, src 2: pred_out-1, src 3: blk.1.ffn_gpu_neu_idx, 
 
  SPLIT 2: backend: 1 CPU # 2 inputs
   input 0: ffn_norm-1 (CUDA0)
@@ -136,10 +133,10 @@ node 19 (PERMUTE): cache_v_l2 (view) (permuted) | src 0: cache_v_l2 (view),
 node 20 (VIEW): cache_k_l2 (view) | src 0: cache_k_l2, 
 node 21 (PERMUTE): cache_k_l2 (view) (permuted) | src 0: cache_k_l2 (view), 
 node 22 (PERMUTE): Qcur-2 (permuted) | src 0: Qcur-2, 
-node 23 (MUL_MAT): node_121 | src 0: cache_k_l2 (view) (permuted), src 1: Qcur-2 (permuted), 
-node 24 (SOFT_MAX): node_122 | src 0: node_121, src 1: leaf_9, 
-node 25 (MUL_MAT): node_123 | src 0: cache_v_l2 (view) (permuted), src 1: node_122, 
-node 26 (PERMUTE):  (permuted) | src 0: node_123, 
+node 23 (MUL_MAT): node_118 | src 0: cache_k_l2 (view) (permuted), src 1: Qcur-2 (permuted), 
+node 24 (SOFT_MAX): node_119 | src 0: node_118, src 1: leaf_9, 
+node 25 (MUL_MAT): node_120 | src 0: cache_v_l2 (view) (permuted), src 1: node_119, 
+node 26 (PERMUTE):  (permuted) | src 0: node_120, 
 node 27 (CONT): kqv_out-2 | src 0:  (permuted), 
 node 28 (MUL_MAT): attn_out-2 | src 0: blk.2.attn_output.weight, src 1: kqv_out-2, 
 node 29 (ADD): ffn_inp-2 | src 0: attn_out-2, src 1: l_out-1, 
@@ -178,10 +175,10 @@ node 61 (PERMUTE): cache_v_l3 (view) (permuted) | src 0: cache_v_l3 (view),
 node 62 (VIEW): cache_k_l3 (view) | src 0: cache_k_l3, 
 node 63 (PERMUTE): cache_k_l3 (view) (permuted) | src 0: cache_k_l3 (view), 
 node 64 (PERMUTE): Qcur-3 (permuted) | src 0: Qcur-3, 
-node 65 (MUL_MAT): node_163 | src 0: cache_k_l3 (view) (permuted), src 1: Qcur-3 (permuted), 
-node 66 (SOFT_MAX): node_164 | src 0: node_163, src 1: leaf_9, 
-node 67 (MUL_MAT): node_165 | src 0: cache_v_l3 (view) (permuted), src 1: node_164, 
-node 68 (PERMUTE):  (permuted) | src 0: node_165, 
+node 65 (MUL_MAT): node_160 | src 0: cache_k_l3 (view) (permuted), src 1: Qcur-3 (permuted), 
+node 66 (SOFT_MAX): node_161 | src 0: node_160, src 1: leaf_9, 
+node 67 (MUL_MAT): node_162 | src 0: cache_v_l3 (view) (permuted), src 1: node_161, 
+node 68 (PERMUTE):  (permuted) | src 0: node_162, 
 node 69 (CONT): kqv_out-3 | src 0:  (permuted), 
 node 70 (MUL_MAT): attn_out-3 | src 0: blk.3.attn_output.weight, src 1: kqv_out-3, 
 node 71 (ADD): ffn_inp-3 | src 0: attn_out-3, src 1: l_out-2, 
@@ -220,10 +217,10 @@ node 103 (PERMUTE): cache_v_l4 (view) (permuted) | src 0: cache_v_l4 (view),
 node 104 (VIEW): cache_k_l4 (view) | src 0: cache_k_l4, 
 node 105 (PERMUTE): cache_k_l4 (view) (permuted) | src 0: cache_k_l4 (view), 
 node 106 (PERMUTE): Qcur-4 (permuted) | src 0: Qcur-4, 
-node 107 (MUL_MAT): node_205 | src 0: cache_k_l4 (view) (permuted), src 1: Qcur-4 (permuted), 
-node 108 (SOFT_MAX): node_206 | src 0: node_205, src 1: leaf_9, 
-node 109 (MUL_MAT): node_207 | src 0: cache_v_l4 (view) (permuted), src 1: node_206, 
-node 110 (PERMUTE):  (permuted) | src 0: node_207, 
+node 107 (MUL_MAT): node_202 | src 0: cache_k_l4 (view) (permuted), src 1: Qcur-4 (permuted), 
+node 108 (SOFT_MAX): node_203 | src 0: node_202, src 1: leaf_9, 
+node 109 (MUL_MAT): node_204 | src 0: cache_v_l4 (view) (permuted), src 1: node_203, 
+node 110 (PERMUTE):  (permuted) | src 0: node_204, 
 node 111 (CONT): kqv_out-4 | src 0:  (permuted), 
 node 112 (MUL_MAT): attn_out-4 | src 0: blk.4.attn_output.weight, src 1: kqv_out-4, 
 node 113 (ADD): ffn_inp-4 | src 0: attn_out-4, src 1: l_out-3, 
@@ -262,10 +259,10 @@ node 145 (PERMUTE): cache_v_l5 (view) (permuted) | src 0: cache_v_l5 (view),
 node 146 (VIEW): cache_k_l5 (view) | src 0: cache_k_l5, 
 node 147 (PERMUTE): cache_k_l5 (view) (permuted) | src 0: cache_k_l5 (view), 
 node 148 (PERMUTE): Qcur-5 (permuted) | src 0: Qcur-5, 
-node 149 (MUL_MAT): node_247 | src 0: cache_k_l5 (view) (permuted), src 1: Qcur-5 (permuted), 
-node 150 (SOFT_MAX): node_248 | src 0: node_247, src 1: leaf_9, 
-node 151 (MUL_MAT): node_249 | src 0: cache_v_l5 (view) (permuted), src 1: node_248, 
-node 152 (PERMUTE):  (permuted) | src 0: node_249, 
+node 149 (MUL_MAT): node_244 | src 0: cache_k_l5 (view) (permuted), src 1: Qcur-5 (permuted), 
+node 150 (SOFT_MAX): node_245 | src 0: node_244, src 1: leaf_9, 
+node 151 (MUL_MAT): node_246 | src 0: cache_v_l5 (view) (permuted), src 1: node_245, 
+node 152 (PERMUTE):  (permuted) | src 0: node_246, 
 node 153 (CONT): kqv_out-5 | src 0:  (permuted), 
 node 154 (MUL_MAT): attn_out-5 | src 0: blk.5.attn_output.weight, src 1: kqv_out-5, 
 node 155 (ADD): ffn_inp-5 | src 0: attn_out-5, src 1: l_out-4, 
@@ -304,10 +301,10 @@ node 187 (PERMUTE): cache_v_l6 (view) (permuted) | src 0: cache_v_l6 (view),
 node 188 (VIEW): cache_k_l6 (view) | src 0: cache_k_l6, 
 node 189 (PERMUTE): cache_k_l6 (view) (permuted) | src 0: cache_k_l6 (view), 
 node 190 (PERMUTE): Qcur-6 (permuted) | src 0: Qcur-6, 
-node 191 (MUL_MAT): node_289 | src 0: cache_k_l6 (view) (permuted), src 1: Qcur-6 (permuted), 
-node 192 (SOFT_MAX): node_290 | src 0: node_289, src 1: leaf_9, 
-node 193 (MUL_MAT): node_291 | src 0: cache_v_l6 (view) (permuted), src 1: node_290, 
-node 194 (PERMUTE):  (permuted) | src 0: node_291, 
+node 191 (MUL_MAT): node_286 | src 0: cache_k_l6 (view) (permuted), src 1: Qcur-6 (permuted), 
+node 192 (SOFT_MAX): node_287 | src 0: node_286, src 1: leaf_9, 
+node 193 (MUL_MAT): node_288 | src 0: cache_v_l6 (view) (permuted), src 1: node_287, 
+node 194 (PERMUTE):  (permuted) | src 0: node_288, 
 node 195 (CONT): kqv_out-6 | src 0:  (permuted), 
 node 196 (MUL_MAT): attn_out-6 | src 0: blk.6.attn_output.weight, src 1: kqv_out-6, 
 node 197 (ADD): ffn_inp-6 | src 0: attn_out-6, src 1: l_out-5, 
@@ -346,10 +343,10 @@ node 229 (PERMUTE): cache_v_l7 (view) (permuted) | src 0: cache_v_l7 (view),
 node 230 (VIEW): cache_k_l7 (view) | src 0: cache_k_l7, 
 node 231 (PERMUTE): cache_k_l7 (view) (permuted) | src 0: cache_k_l7 (view), 
 node 232 (PERMUTE): Qcur-7 (permuted) | src 0: Qcur-7, 
-node 233 (MUL_MAT): node_331 | src 0: cache_k_l7 (view) (permuted), src 1: Qcur-7 (permuted), 
-node 234 (SOFT_MAX): node_332 | src 0: node_331, src 1: leaf_9, 
-node 235 (MUL_MAT): node_333 | src 0: cache_v_l7 (view) (permuted), src 1: node_332, 
-node 236 (PERMUTE):  (permuted) | src 0: node_333, 
+node 233 (MUL_MAT): node_328 | src 0: cache_k_l7 (view) (permuted), src 1: Qcur-7 (permuted), 
+node 234 (SOFT_MAX): node_329 | src 0: node_328, src 1: leaf_9, 
+node 235 (MUL_MAT): node_330 | src 0: cache_v_l7 (view) (permuted), src 1: node_329, 
+node 236 (PERMUTE):  (permuted) | src 0: node_330, 
 node 237 (CONT): kqv_out-7 | src 0:  (permuted), 
 node 238 (MUL_MAT): attn_out-7 | src 0: blk.7.attn_output.weight, src 1: kqv_out-7, 
 node 239 (ADD): ffn_inp-7 | src 0: attn_out-7, src 1: l_out-6, 
@@ -388,10 +385,10 @@ node 271 (PERMUTE): cache_v_l8 (view) (permuted) | src 0: cache_v_l8 (view),
 node 272 (VIEW): cache_k_l8 (view) | src 0: cache_k_l8, 
 node 273 (PERMUTE): cache_k_l8 (view) (permuted) | src 0: cache_k_l8 (view), 
 node 274 (PERMUTE): Qcur-8 (permuted) | src 0: Qcur-8, 
-node 275 (MUL_MAT): node_373 | src 0: cache_k_l8 (view) (permuted), src 1: Qcur-8 (permuted), 
-node 276 (SOFT_MAX): node_374 | src 0: node_373, src 1: leaf_9, 
-node 277 (MUL_MAT): node_375 | src 0: cache_v_l8 (view) (permuted), src 1: node_374, 
-node 278 (PERMUTE):  (permuted) | src 0: node_375, 
+node 275 (MUL_MAT): node_370 | src 0: cache_k_l8 (view) (permuted), src 1: Qcur-8 (permuted), 
+node 276 (SOFT_MAX): node_371 | src 0: node_370, src 1: leaf_9, 
+node 277 (MUL_MAT): node_372 | src 0: cache_v_l8 (view) (permuted), src 1: node_371, 
+node 278 (PERMUTE):  (permuted) | src 0: node_372, 
 node 279 (CONT): kqv_out-8 | src 0:  (permuted), 
 node 280 (MUL_MAT): attn_out-8 | src 0: blk.8.attn_output.weight, src 1: kqv_out-8, 
 node 281 (ADD): ffn_inp-8 | src 0: attn_out-8, src 1: l_out-7, 
@@ -430,10 +427,10 @@ node 313 (PERMUTE): cache_v_l9 (view) (permuted) | src 0: cache_v_l9 (view),
 node 314 (VIEW): cache_k_l9 (view) | src 0: cache_k_l9, 
 node 315 (PERMUTE): cache_k_l9 (view) (permuted) | src 0: cache_k_l9 (view), 
 node 316 (PERMUTE): Qcur-9 (permuted) | src 0: Qcur-9, 
-node 317 (MUL_MAT): node_415 | src 0: cache_k_l9 (view) (permuted), src 1: Qcur-9 (permuted), 
-node 318 (SOFT_MAX): node_416 | src 0: node_415, src 1: leaf_9, 
-node 319 (MUL_MAT): node_417 | src 0: cache_v_l9 (view) (permuted), src 1: node_416, 
-node 320 (PERMUTE):  (permuted) | src 0: node_417, 
+node 317 (MUL_MAT): node_412 | src 0: cache_k_l9 (view) (permuted), src 1: Qcur-9 (permuted), 
+node 318 (SOFT_MAX): node_413 | src 0: node_412, src 1: leaf_9, 
+node 319 (MUL_MAT): node_414 | src 0: cache_v_l9 (view) (permuted), src 1: node_413, 
+node 320 (PERMUTE):  (permuted) | src 0: node_414, 
 node 321 (CONT): kqv_out-9 | src 0:  (permuted), 
 node 322 (MUL_MAT): attn_out-9 | src 0: blk.9.attn_output.weight, src 1: kqv_out-9, 
 node 323 (ADD): ffn_inp-9 | src 0: attn_out-9, src 1: l_out-8, 
@@ -472,10 +469,10 @@ node 355 (PERMUTE): cache_v_l10 (view) (permuted) | src 0: cache_v_l10 (view),
 node 356 (VIEW): cache_k_l10 (view) | src 0: cache_k_l10, 
 node 357 (PERMUTE): cache_k_l10 (view) (permuted) | src 0: cache_k_l10 (view), 
 node 358 (PERMUTE): Qcur-10 (permuted) | src 0: Qcur-10, 
-node 359 (MUL_MAT): node_457 | src 0: cache_k_l10 (view) (permuted), src 1: Qcur-10 (permuted), 
-node 360 (SOFT_MAX): node_458 | src 0: node_457, src 1: leaf_9, 
-node 361 (MUL_MAT): node_459 | src 0: cache_v_l10 (view) (permuted), src 1: node_458, 
-node 362 (PERMUTE):  (permuted) | src 0: node_459, 
+node 359 (MUL_MAT): node_454 | src 0: cache_k_l10 (view) (permuted), src 1: Qcur-10 (permuted), 
+node 360 (SOFT_MAX): node_455 | src 0: node_454, src 1: leaf_9, 
+node 361 (MUL_MAT): node_456 | src 0: cache_v_l10 (view) (permuted), src 1: node_455, 
+node 362 (PERMUTE):  (permuted) | src 0: node_456, 
 node 363 (CONT): kqv_out-10 | src 0:  (permuted), 
 node 364 (MUL_MAT): attn_out-10 | src 0: blk.10.attn_output.weight, src 1: kqv_out-10, 
 node 365 (ADD): ffn_inp-10 | src 0: attn_out-10, src 1: l_out-9, 
@@ -514,10 +511,10 @@ node 397 (PERMUTE): cache_v_l11 (view) (permuted) | src 0: cache_v_l11 (view),
 node 398 (VIEW): cache_k_l11 (view) | src 0: cache_k_l11, 
 node 399 (PERMUTE): cache_k_l11 (view) (permuted) | src 0: cache_k_l11 (view), 
 node 400 (PERMUTE): Qcur-11 (permuted) | src 0: Qcur-11, 
-node 401 (MUL_MAT): node_499 | src 0: cache_k_l11 (view) (permuted), src 1: Qcur-11 (permuted), 
-node 402 (SOFT_MAX): node_500 | src 0: node_499, src 1: leaf_9, 
-node 403 (MUL_MAT): node_501 | src 0: cache_v_l11 (view) (permuted), src 1: node_500, 
-node 404 (PERMUTE):  (permuted) | src 0: node_501, 
+node 401 (MUL_MAT): node_496 | src 0: cache_k_l11 (view) (permuted), src 1: Qcur-11 (permuted), 
+node 402 (SOFT_MAX): node_497 | src 0: node_496, src 1: leaf_9, 
+node 403 (MUL_MAT): node_498 | src 0: cache_v_l11 (view) (permuted), src 1: node_497, 
+node 404 (PERMUTE):  (permuted) | src 0: node_498, 
 node 405 (CONT): kqv_out-11 | src 0:  (permuted), 
 node 406 (MUL_MAT): attn_out-11 | src 0: blk.11.attn_output.weight, src 1: kqv_out-11, 
 node 407 (ADD): ffn_inp-11 | src 0: attn_out-11, src 1: l_out-10, 
@@ -556,10 +553,10 @@ node 439 (PERMUTE): cache_v_l12 (view) (permuted) | src 0: cache_v_l12 (view),
 node 440 (VIEW): cache_k_l12 (view) | src 0: cache_k_l12, 
 node 441 (PERMUTE): cache_k_l12 (view) (permuted) | src 0: cache_k_l12 (view), 
 node 442 (PERMUTE): Qcur-12 (permuted) | src 0: Qcur-12, 
-node 443 (MUL_MAT): node_541 | src 0: cache_k_l12 (view) (permuted), src 1: Qcur-12 (permuted), 
-node 444 (SOFT_MAX): node_542 | src 0: node_541, src 1: leaf_9, 
-node 445 (MUL_MAT): node_543 | src 0: cache_v_l12 (view) (permuted), src 1: node_542, 
-node 446 (PERMUTE):  (permuted) | src 0: node_543, 
+node 443 (MUL_MAT): node_538 | src 0: cache_k_l12 (view) (permuted), src 1: Qcur-12 (permuted), 
+node 444 (SOFT_MAX): node_539 | src 0: node_538, src 1: leaf_9, 
+node 445 (MUL_MAT): node_540 | src 0: cache_v_l12 (view) (permuted), src 1: node_539, 
+node 446 (PERMUTE):  (permuted) | src 0: node_540, 
 node 447 (CONT): kqv_out-12 | src 0:  (permuted), 
 node 448 (MUL_MAT): attn_out-12 | src 0: blk.12.attn_output.weight, src 1: kqv_out-12, 
 node 449 (ADD): ffn_inp-12 | src 0: attn_out-12, src 1: l_out-11, 
@@ -598,10 +595,10 @@ node 481 (PERMUTE): cache_v_l13 (view) (permuted) | src 0: cache_v_l13 (view),
 node 482 (VIEW): cache_k_l13 (view) | src 0: cache_k_l13, 
 node 483 (PERMUTE): cache_k_l13 (view) (permuted) | src 0: cache_k_l13 (view), 
 node 484 (PERMUTE): Qcur-13 (permuted) | src 0: Qcur-13, 
-node 485 (MUL_MAT): node_583 | src 0: cache_k_l13 (view) (permuted), src 1: Qcur-13 (permuted), 
-node 486 (SOFT_MAX): node_584 | src 0: node_583, src 1: leaf_9, 
-node 487 (MUL_MAT): node_585 | src 0: cache_v_l13 (view) (permuted), src 1: node_584, 
-node 488 (PERMUTE):  (permuted) | src 0: node_585, 
+node 485 (MUL_MAT): node_580 | src 0: cache_k_l13 (view) (permuted), src 1: Qcur-13 (permuted), 
+node 486 (SOFT_MAX): node_581 | src 0: node_580, src 1: leaf_9, 
+node 487 (MUL_MAT): node_582 | src 0: cache_v_l13 (view) (permuted), src 1: node_581, 
+node 488 (PERMUTE):  (permuted) | src 0: node_582, 
 node 489 (CONT): kqv_out-13 | src 0:  (permuted), 
 node 490 (MUL_MAT): attn_out-13 | src 0: blk.13.attn_output.weight, src 1: kqv_out-13, 
 node 491 (ADD): ffn_inp-13 | src 0: attn_out-13, src 1: l_out-12, 
@@ -640,10 +637,10 @@ node 523 (PERMUTE): cache_v_l14 (view) (permuted) | src 0: cache_v_l14 (view),
 node 524 (VIEW): cache_k_l14 (view) | src 0: cache_k_l14, 
 node 525 (PERMUTE): cache_k_l14 (view) (permuted) | src 0: cache_k_l14 (view), 
 node 526 (PERMUTE): Qcur-14 (permuted) | src 0: Qcur-14, 
-node 527 (MUL_MAT): node_625 | src 0: cache_k_l14 (view) (permuted), src 1: Qcur-14 (permuted), 
-node 528 (SOFT_MAX): node_626 | src 0: node_625, src 1: leaf_9, 
-node 529 (MUL_MAT): node_627 | src 0: cache_v_l14 (view) (permuted), src 1: node_626, 
-node 530 (PERMUTE):  (permuted) | src 0: node_627, 
+node 527 (MUL_MAT): node_622 | src 0: cache_k_l14 (view) (permuted), src 1: Qcur-14 (permuted), 
+node 528 (SOFT_MAX): node_623 | src 0: node_622, src 1: leaf_9, 
+node 529 (MUL_MAT): node_624 | src 0: cache_v_l14 (view) (permuted), src 1: node_623, 
+node 530 (PERMUTE):  (permuted) | src 0: node_624, 
 node 531 (CONT): kqv_out-14 | src 0:  (permuted), 
 node 532 (MUL_MAT): attn_out-14 | src 0: blk.14.attn_output.weight, src 1: kqv_out-14, 
 node 533 (ADD): ffn_inp-14 | src 0: attn_out-14, src 1: l_out-13, 
@@ -682,10 +679,10 @@ node 565 (PERMUTE): cache_v_l15 (view) (permuted) | src 0: cache_v_l15 (view),
 node 566 (VIEW): cache_k_l15 (view) | src 0: cache_k_l15, 
 node 567 (PERMUTE): cache_k_l15 (view) (permuted) | src 0: cache_k_l15 (view), 
 node 568 (PERMUTE): Qcur-15 (permuted) | src 0: Qcur-15, 
-node 569 (MUL_MAT): node_667 | src 0: cache_k_l15 (view) (permuted), src 1: Qcur-15 (permuted), 
-node 570 (SOFT_MAX): node_668 | src 0: node_667, src 1: leaf_9, 
-node 571 (MUL_MAT): node_669 | src 0: cache_v_l15 (view) (permuted), src 1: node_668, 
-node 572 (PERMUTE):  (permuted) | src 0: node_669, 
+node 569 (MUL_MAT): node_664 | src 0: cache_k_l15 (view) (permuted), src 1: Qcur-15 (permuted), 
+node 570 (SOFT_MAX): node_665 | src 0: node_664, src 1: leaf_9, 
+node 571 (MUL_MAT): node_666 | src 0: cache_v_l15 (view) (permuted), src 1: node_665, 
+node 572 (PERMUTE):  (permuted) | src 0: node_666, 
 node 573 (CONT): kqv_out-15 | src 0:  (permuted), 
 node 574 (MUL_MAT): attn_out-15 | src 0: blk.15.attn_output.weight, src 1: kqv_out-15, 
 node 575 (ADD): ffn_inp-15 | src 0: attn_out-15, src 1: l_out-14, 
@@ -699,77 +696,73 @@ node 582 (ADD): pred_down_b-16 | src 0: pred_down-16, src 1: blk.16.ffn_pred_dow
 node 583 (UNARY): pred_out-16 | src 0: pred_down_b-16, 
 node 584 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-15 | src 0: blk.15.ffn_gpu_up.weight, src 1: ffn_norm-15, src 2: pred_out-15, 
 node 585 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-15 | src 0: blk.15.ffn_gpu_gate.weight, src 1: ffn_norm-15, src 2: pred_out-15, 
+node 586 (UNARY): ffn_gate_act-15 | src 0: ffn_gate_sparse_gpu-15, 
+node 587 (MUL): ffn_gate_par-15 | src 0: ffn_gate_act-15, src 1: ffn_up_sparse_gpu-15, 
+node 588 (AXPY_SPARSE): ffn_down_sparse_gpu-15 | src 0: blk.15.ffn_gpu_down_t.weight, src 1: ffn_gate_par-15, src 2: pred_out-15, 
+node 589 (ADD): l_out-15 | src 0: ffn_down_sparse_gpu-15, src 1: ffn_inp-15, 
+node 590 (RMS_NORM): norm-16 | src 0: l_out-15, 
+node 591 (MUL): attn_norm-16 | src 0: norm-16, src 1: blk.16.attn_norm.weight, 
+node 592 (MUL_MAT): Qcur-16 | src 0: blk.16.attn_q.weight, src 1: attn_norm-16, 
+node 593 (RESHAPE): Qcur-16 (reshaped) | src 0: Qcur-16, 
+node 594 (ROPE): Qcur-16 | src 0: Qcur-16 (reshaped), src 1: leaf_4, 
+node 595 (MUL_MAT): Kcur-16 | src 0: blk.16.attn_k.weight, src 1: attn_norm-16, 
+node 596 (RESHAPE): Kcur-16 (reshaped) | src 0: Kcur-16, 
+node 597 (ROPE): Kcur-16 | src 0: Kcur-16 (reshaped), src 1: leaf_4, 
+node 598 (MUL_MAT): Vcur-16 | src 0: blk.16.attn_v.weight, src 1: attn_norm-16, 
+node 599 (RESHAPE): Vcur-16 | src 0: Vcur-16, 
+node 600 (VIEW): cache_k_l16 (view) | src 0: cache_k_l16, 
+node 601 (CPY): cache_k_l16 (view) (copy of Kcur-16) | src 0: Kcur-16, src 1: cache_k_l16 (view), 
+node 602 (RESHAPE): Vcur-16 (reshaped) | src 0: Vcur-16, 
+node 603 (TRANSPOSE): Vcur-16 (reshaped) (transposed) | src 0: Vcur-16 (reshaped), 
+node 604 (VIEW): cache_v_l16 (view) | src 0: cache_v_l16, 
+node 605 (CPY): cache_v_l16 (view) (copy of Vcur-16 (reshaped) (transposed)) | src 0: Vcur-16 (reshaped) (transposed), src 1: cache_v_l16 (view), 
+node 606 (VIEW): cache_v_l16 (view) | src 0: cache_v_l16, 
+node 607 (PERMUTE): cache_v_l16 (view) (permuted) | src 0: cache_v_l16 (view), 
+node 608 (VIEW): cache_k_l16 (view) | src 0: cache_k_l16, 
+node 609 (PERMUTE): cache_k_l16 (view) (permuted) | src 0: cache_k_l16 (view), 
+node 610 (PERMUTE): Qcur-16 (permuted) | src 0: Qcur-16, 
+node 611 (MUL_MAT): node_706 | src 0: cache_k_l16 (view) (permuted), src 1: Qcur-16 (permuted), 
+node 612 (SOFT_MAX): node_707 | src 0: node_706, src 1: leaf_9, 
+node 613 (MUL_MAT): node_708 | src 0: cache_v_l16 (view) (permuted), src 1: node_707, 
+node 614 (PERMUTE):  (permuted) | src 0: node_708, 
+node 615 (CONT): kqv_out-16 | src 0:  (permuted), 
+node 616 (MUL_MAT): attn_out-16 | src 0: blk.16.attn_output.weight, src 1: kqv_out-16, 
+node 617 (ADD): ffn_inp-16 | src 0: attn_out-16, src 1: l_out-15, 
+node 618 (RMS_NORM): norm-16 | src 0: ffn_inp-16, 
+node 619 (MUL): ffn_norm-16 | src 0: norm-16, src 1: blk.16.ffn_norm.weight, 
+node 620 (MUL_MAT): pred_up-17 | src 0: blk.17.ffn_pred_up.weight, src 1: ffn_norm-16, 
+node 621 (ADD): pred_up_b-17 | src 0: pred_up-17, src 1: blk.17.ffn_pred_up.bias, 
+node 622 (UNARY): pred_relu-17 | src 0: pred_up_b-17, 
+node 623 (MUL_MAT): pred_down-17 | src 0: blk.17.ffn_pred_down.weight, src 1: pred_relu-17, 
+node 624 (ADD): pred_down_b-17 | src 0: pred_down-17, src 1: blk.17.ffn_pred_down.bias, 
+node 625 (UNARY): pred_out-17 | src 0: pred_down_b-17, 
+node 626 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-16 | src 0: blk.16.ffn_gpu_up.weight, src 1: ffn_norm-16, src 2: pred_out-16, src 3: blk.16.ffn_gpu_neu_idx, 
+node 627 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-16 | src 0: blk.16.ffn_gpu_gate.weight, src 1: ffn_norm-16, src 2: pred_out-16, src 3: blk.16.ffn_gpu_neu_idx, 
 
- SPLIT 6: backend: 0 CUDA0 # 0 inputs
-node 0 (RELOAD): ffn_gate_reload-16 | src 0: blk.16.ffn_gpu_gate.weight, src 1: blk.16.ffn_gate.weight, src 2: pred_out-16, src 3: blk.16.ffn_gpu_neu_idx, src 4: blk.16.ffn_gpu_neu_mask, src 5: blk.16.ffn_dfr_score, 
-node 1 (RELOAD): ffn_up_reload-16 | src 0: blk.16.ffn_gpu_up.weight, src 1: blk.16.ffn_up.weight, src 2: pred_out-16, src 3: blk.16.ffn_gpu_neu_idx, src 4: blk.16.ffn_gpu_neu_mask, src 5: blk.16.ffn_dfr_score, 
-node 2 (RELOAD): ffn_down_reload-16 | src 0: blk.16.ffn_gpu_down_t.weight, src 1: blk.16.ffn_down_t.weight, src 2: pred_out-16, src 3: blk.16.ffn_gpu_neu_idx, src 4: blk.16.ffn_gpu_neu_mask, src 5: blk.16.ffn_dfr_score, 
-node 3 (UNARY): ffn_gate_act-15 | src 0: ffn_gate_sparse_gpu-15, 
-node 4 (MUL): ffn_gate_par-15 | src 0: ffn_gate_act-15, src 1: ffn_up_sparse_gpu-15, 
-node 5 (AXPY_SPARSE): ffn_down_sparse_gpu-15 | src 0: blk.15.ffn_gpu_down_t.weight, src 1: ffn_gate_par-15, src 2: pred_out-15, 
-node 6 (ADD): l_out-15 | src 0: ffn_down_sparse_gpu-15, src 1: ffn_inp-15, 
-node 7 (RMS_NORM): norm-16 | src 0: l_out-15, 
-node 8 (MUL): attn_norm-16 | src 0: norm-16, src 1: blk.16.attn_norm.weight, 
-node 9 (MUL_MAT): Qcur-16 | src 0: blk.16.attn_q.weight, src 1: attn_norm-16, 
-node 10 (RESHAPE): Qcur-16 (reshaped) | src 0: Qcur-16, 
-node 11 (ROPE): Qcur-16 | src 0: Qcur-16 (reshaped), src 1: leaf_4, 
-node 12 (MUL_MAT): Kcur-16 | src 0: blk.16.attn_k.weight, src 1: attn_norm-16, 
-node 13 (RESHAPE): Kcur-16 (reshaped) | src 0: Kcur-16, 
-node 14 (ROPE): Kcur-16 | src 0: Kcur-16 (reshaped), src 1: leaf_4, 
-node 15 (MUL_MAT): Vcur-16 | src 0: blk.16.attn_v.weight, src 1: attn_norm-16, 
-node 16 (RESHAPE): Vcur-16 | src 0: Vcur-16, 
-node 17 (VIEW): cache_k_l16 (view) | src 0: cache_k_l16, 
-node 18 (CPY): cache_k_l16 (view) (copy of Kcur-16) | src 0: Kcur-16, src 1: cache_k_l16 (view), 
-node 19 (RESHAPE): Vcur-16 (reshaped) | src 0: Vcur-16, 
-node 20 (TRANSPOSE): Vcur-16 (reshaped) (transposed) | src 0: Vcur-16 (reshaped), 
-node 21 (VIEW): cache_v_l16 (view) | src 0: cache_v_l16, 
-node 22 (CPY): cache_v_l16 (view) (copy of Vcur-16 (reshaped) (transposed)) | src 0: Vcur-16 (reshaped) (transposed), src 1: cache_v_l16 (view), 
-node 23 (VIEW): cache_v_l16 (view) | src 0: cache_v_l16, 
-node 24 (PERMUTE): cache_v_l16 (view) (permuted) | src 0: cache_v_l16 (view), 
-node 25 (VIEW): cache_k_l16 (view) | src 0: cache_k_l16, 
-node 26 (PERMUTE): cache_k_l16 (view) (permuted) | src 0: cache_k_l16 (view), 
-node 27 (PERMUTE): Qcur-16 (permuted) | src 0: Qcur-16, 
-node 28 (MUL_MAT): node_712 | src 0: cache_k_l16 (view) (permuted), src 1: Qcur-16 (permuted), 
-node 29 (SOFT_MAX): node_713 | src 0: node_712, src 1: leaf_9, 
-node 30 (MUL_MAT): node_714 | src 0: cache_v_l16 (view) (permuted), src 1: node_713, 
-node 31 (PERMUTE):  (permuted) | src 0: node_714, 
-node 32 (CONT): kqv_out-16 | src 0:  (permuted), 
-node 33 (MUL_MAT): attn_out-16 | src 0: blk.16.attn_output.weight, src 1: kqv_out-16, 
-node 34 (ADD): ffn_inp-16 | src 0: attn_out-16, src 1: l_out-15, 
-node 35 (RMS_NORM): norm-16 | src 0: ffn_inp-16, 
-node 36 (MUL): ffn_norm-16 | src 0: norm-16, src 1: blk.16.ffn_norm.weight, 
-node 37 (MUL_MAT): pred_up-17 | src 0: blk.17.ffn_pred_up.weight, src 1: ffn_norm-16, 
-node 38 (ADD): pred_up_b-17 | src 0: pred_up-17, src 1: blk.17.ffn_pred_up.bias, 
-node 39 (UNARY): pred_relu-17 | src 0: pred_up_b-17, 
-node 40 (MUL_MAT): pred_down-17 | src 0: blk.17.ffn_pred_down.weight, src 1: pred_relu-17, 
-node 41 (ADD): pred_down_b-17 | src 0: pred_down-17, src 1: blk.17.ffn_pred_down.bias, 
-node 42 (UNARY): pred_out-17 | src 0: pred_down_b-17, 
-node 43 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-16 | src 0: blk.16.ffn_gpu_up.weight, src 1: ffn_norm-16, src 2: pred_out-16, src 3: blk.16.ffn_gpu_neu_idx, 
-node 44 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-16 | src 0: blk.16.ffn_gpu_gate.weight, src 1: ffn_norm-16, src 2: pred_out-16, src 3: blk.16.ffn_gpu_neu_idx, 
-node 45 (RELOAD): ffn_gate_reload-17 | src 0: blk.17.ffn_gpu_gate.weight, src 1: blk.17.ffn_gate.weight, src 2: pred_out-17, src 3: blk.17.ffn_gpu_neu_idx, src 4: blk.17.ffn_gpu_neu_mask, src 5: blk.17.ffn_dfr_score, 
-node 46 (RELOAD): ffn_up_reload-17 | src 0: blk.17.ffn_gpu_up.weight, src 1: blk.17.ffn_up.weight, src 2: pred_out-17, src 3: blk.17.ffn_gpu_neu_idx, src 4: blk.17.ffn_gpu_neu_mask, src 5: blk.17.ffn_dfr_score, 
-node 47 (RELOAD): ffn_down_reload-17 | src 0: blk.17.ffn_gpu_down_t.weight, src 1: blk.17.ffn_down_t.weight, src 2: pred_out-17, src 3: blk.17.ffn_gpu_neu_idx, src 4: blk.17.ffn_gpu_neu_mask, src 5: blk.17.ffn_dfr_score, 
-
- SPLIT 7: backend: 1 CPU # 2 inputs
+ SPLIT 6: backend: 1 CPU # 2 inputs
   input 0: ffn_norm-16 (CUDA0)
   input 1: pred_out-16 (CUDA0)
 node 0 (MUL_MAT_SPARSE): ffn_up_sparse_cpu-16 | src 0: blk.16.ffn_up.weight, src 1: CPU#ffn_norm-16#0, src 2: CPU#pred_out-16#0, src 3: blk.16.ffn_gpu_neu_mask, 
 node 1 (MUL_MAT_SPARSE): ffn_gate_sparse_cpu-16 | src 0: blk.16.ffn_gate.weight, src 1: CPU#ffn_norm-16#0, src 2: CPU#pred_out-16#0, src 3: blk.16.ffn_gpu_neu_mask, 
 
- SPLIT 8: backend: 0 CUDA0 # 2 inputs
+ SPLIT 7: backend: 0 CUDA0 # 2 inputs
   input 0: ffn_gate_sparse_cpu-16 (  CPU)
   input 1: ffn_up_sparse_cpu-16 (  CPU)
-node 0 (ADD): ffn_gate_sparse_merged-16 | src 0: ffn_gate_sparse_gpu-16, src 1: CUDA0#ffn_gate_sparse_cpu-16#0, 
-node 1 (UNARY): ffn_gate_act-16 | src 0: ffn_gate_sparse_merged-16, 
-node 2 (ADD): ffn_up_sparse_merged-16 | src 0: ffn_up_sparse_gpu-16, src 1: CUDA0#ffn_up_sparse_cpu-16#0, 
-node 3 (MUL): ffn_gate_par-16 | src 0: ffn_gate_act-16, src 1: ffn_up_sparse_merged-16, 
-node 4 (AXPY_SPARSE): ffn_down_sparse_gpu-16 | src 0: blk.16.ffn_gpu_down_t.weight, src 1: ffn_gate_par-16, src 2: pred_out-16, src 3: blk.16.ffn_gpu_neu_idx, 
+node 0 (RELOAD_PLAN): ffn_reload_plan-17 | src 0: pred_out-17, 
+node 1 (RELOAD_EXEC): ffn_gate_reload-17 | src 0: blk.17.ffn_gpu_gate.weight, src 1: blk.17.ffn_gate.weight, src 2: ffn_reload_plan-17, 
+node 2 (RELOAD_EXEC): ffn_up_reload-17 | src 0: blk.17.ffn_gpu_up.weight, src 1: blk.17.ffn_up.weight, src 2: ffn_reload_plan-17, 
+node 3 (RELOAD_EXEC): ffn_down_reload-17 | src 0: blk.17.ffn_gpu_down_t.weight, src 1: blk.17.ffn_down_t.weight, src 2: ffn_reload_plan-17, 
+node 4 (ADD): ffn_gate_sparse_merged-16 | src 0: ffn_gate_sparse_gpu-16, src 1: CUDA0#ffn_gate_sparse_cpu-16#0, 
+node 5 (UNARY): ffn_gate_act-16 | src 0: ffn_gate_sparse_merged-16, 
+node 6 (ADD): ffn_up_sparse_merged-16 | src 0: ffn_up_sparse_gpu-16, src 1: CUDA0#ffn_up_sparse_cpu-16#0, 
+node 7 (MUL): ffn_gate_par-16 | src 0: ffn_gate_act-16, src 1: ffn_up_sparse_merged-16, 
+node 8 (AXPY_SPARSE): ffn_down_sparse_gpu-16 | src 0: blk.16.ffn_gpu_down_t.weight, src 1: ffn_gate_par-16, src 2: pred_out-16, src 3: blk.16.ffn_gpu_neu_idx, 
 
- SPLIT 9: backend: 1 CPU # 1 inputs
+ SPLIT 8: backend: 1 CPU # 1 inputs
   input 0: ffn_gate_par-16 (CUDA0)
 node 0 (AXPY_SPARSE): ffn_down_sparse_cpu-16 | src 0: blk.16.ffn_down_t.weight, src 1: CPU#ffn_gate_par-16#0, src 2: CPU#pred_out-16#0, src 3: blk.16.ffn_gpu_neu_mask, 
 
- SPLIT 10: backend: 0 CUDA0 # 1 inputs
+ SPLIT 9: backend: 0 CUDA0 # 1 inputs
   input 0: ffn_down_sparse_cpu-16 (  CPU)
 node 0 (ADD): ffn_down_sparse_merged-16 | src 0: CUDA0#ffn_down_sparse_cpu-16#0, src 1: ffn_down_sparse_gpu-16, 
 node 1 (ADD): l_out-16 | src 0: ffn_down_sparse_merged-16, src 1: ffn_inp-16, 
@@ -794,10 +787,10 @@ node 19 (PERMUTE): cache_v_l17 (view) (permuted) | src 0: cache_v_l17 (view),
 node 20 (VIEW): cache_k_l17 (view) | src 0: cache_k_l17, 
 node 21 (PERMUTE): cache_k_l17 (view) (permuted) | src 0: cache_k_l17 (view), 
 node 22 (PERMUTE): Qcur-17 (permuted) | src 0: Qcur-17, 
-node 23 (MUL_MAT): node_763 | src 0: cache_k_l17 (view) (permuted), src 1: Qcur-17 (permuted), 
-node 24 (SOFT_MAX): node_764 | src 0: node_763, src 1: leaf_9, 
-node 25 (MUL_MAT): node_765 | src 0: cache_v_l17 (view) (permuted), src 1: node_764, 
-node 26 (PERMUTE):  (permuted) | src 0: node_765, 
+node 23 (MUL_MAT): node_758 | src 0: cache_k_l17 (view) (permuted), src 1: Qcur-17 (permuted), 
+node 24 (SOFT_MAX): node_759 | src 0: node_758, src 1: leaf_9, 
+node 25 (MUL_MAT): node_760 | src 0: cache_v_l17 (view) (permuted), src 1: node_759, 
+node 26 (PERMUTE):  (permuted) | src 0: node_760, 
 node 27 (CONT): kqv_out-17 | src 0:  (permuted), 
 node 28 (MUL_MAT): attn_out-17 | src 0: blk.17.attn_output.weight, src 1: kqv_out-17, 
 node 29 (ADD): ffn_inp-17 | src 0: attn_out-17, src 1: l_out-16, 
@@ -812,31 +805,30 @@ node 37 (UNARY): pred_out-18 | src 0: pred_down_b-18,
 node 38 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-17 | src 0: blk.17.ffn_gpu_up.weight, src 1: ffn_norm-17, src 2: pred_out-17, src 3: blk.17.ffn_gpu_neu_idx, 
 node 39 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-17 | src 0: blk.17.ffn_gpu_gate.weight, src 1: ffn_norm-17, src 2: pred_out-17, src 3: blk.17.ffn_gpu_neu_idx, 
 
- SPLIT 11: backend: 0 CUDA0 # 0 inputs
-node 0 (RELOAD): ffn_gate_reload-18 | src 0: blk.18.ffn_gpu_gate.weight, src 1: blk.18.ffn_gate.weight, src 2: pred_out-18, src 3: blk.18.ffn_gpu_neu_idx, src 4: blk.18.ffn_gpu_neu_mask, src 5: blk.18.ffn_dfr_score, 
-node 1 (RELOAD): ffn_up_reload-18 | src 0: blk.18.ffn_gpu_up.weight, src 1: blk.18.ffn_up.weight, src 2: pred_out-18, src 3: blk.18.ffn_gpu_neu_idx, src 4: blk.18.ffn_gpu_neu_mask, src 5: blk.18.ffn_dfr_score, 
-node 2 (RELOAD): ffn_down_reload-18 | src 0: blk.18.ffn_gpu_down_t.weight, src 1: blk.18.ffn_down_t.weight, src 2: pred_out-18, src 3: blk.18.ffn_gpu_neu_idx, src 4: blk.18.ffn_gpu_neu_mask, src 5: blk.18.ffn_dfr_score, 
-
- SPLIT 12: backend: 1 CPU # 2 inputs
+ SPLIT 10: backend: 1 CPU # 2 inputs
   input 0: ffn_norm-17 (CUDA0)
   input 1: pred_out-17 (CUDA0)
 node 0 (MUL_MAT_SPARSE): ffn_up_sparse_cpu-17 | src 0: blk.17.ffn_up.weight, src 1: CPU#ffn_norm-17#0, src 2: CPU#pred_out-17#0, src 3: blk.17.ffn_gpu_neu_mask, 
 node 1 (MUL_MAT_SPARSE): ffn_gate_sparse_cpu-17 | src 0: blk.17.ffn_gate.weight, src 1: CPU#ffn_norm-17#0, src 2: CPU#pred_out-17#0, src 3: blk.17.ffn_gpu_neu_mask, 
 
- SPLIT 13: backend: 0 CUDA0 # 2 inputs
+ SPLIT 11: backend: 0 CUDA0 # 2 inputs
   input 0: ffn_gate_sparse_cpu-17 (  CPU)
   input 1: ffn_up_sparse_cpu-17 (  CPU)
-node 0 (ADD): ffn_gate_sparse_merged-17 | src 0: ffn_gate_sparse_gpu-17, src 1: CUDA0#ffn_gate_sparse_cpu-17#0, 
-node 1 (UNARY): ffn_gate_act-17 | src 0: ffn_gate_sparse_merged-17, 
-node 2 (ADD): ffn_up_sparse_merged-17 | src 0: ffn_up_sparse_gpu-17, src 1: CUDA0#ffn_up_sparse_cpu-17#0, 
-node 3 (MUL): ffn_gate_par-17 | src 0: ffn_gate_act-17, src 1: ffn_up_sparse_merged-17, 
-node 4 (AXPY_SPARSE): ffn_down_sparse_gpu-17 | src 0: blk.17.ffn_gpu_down_t.weight, src 1: ffn_gate_par-17, src 2: pred_out-17, src 3: blk.17.ffn_gpu_neu_idx, 
+node 0 (RELOAD_PLAN): ffn_reload_plan-18 | src 0: pred_out-18, 
+node 1 (RELOAD_EXEC): ffn_gate_reload-18 | src 0: blk.18.ffn_gpu_gate.weight, src 1: blk.18.ffn_gate.weight, src 2: ffn_reload_plan-18, 
+node 2 (RELOAD_EXEC): ffn_up_reload-18 | src 0: blk.18.ffn_gpu_up.weight, src 1: blk.18.ffn_up.weight, src 2: ffn_reload_plan-18, 
+node 3 (RELOAD_EXEC): ffn_down_reload-18 | src 0: blk.18.ffn_gpu_down_t.weight, src 1: blk.18.ffn_down_t.weight, src 2: ffn_reload_plan-18, 
+node 4 (ADD): ffn_gate_sparse_merged-17 | src 0: ffn_gate_sparse_gpu-17, src 1: CUDA0#ffn_gate_sparse_cpu-17#0, 
+node 5 (UNARY): ffn_gate_act-17 | src 0: ffn_gate_sparse_merged-17, 
+node 6 (ADD): ffn_up_sparse_merged-17 | src 0: ffn_up_sparse_gpu-17, src 1: CUDA0#ffn_up_sparse_cpu-17#0, 
+node 7 (MUL): ffn_gate_par-17 | src 0: ffn_gate_act-17, src 1: ffn_up_sparse_merged-17, 
+node 8 (AXPY_SPARSE): ffn_down_sparse_gpu-17 | src 0: blk.17.ffn_gpu_down_t.weight, src 1: ffn_gate_par-17, src 2: pred_out-17, src 3: blk.17.ffn_gpu_neu_idx, 
 
- SPLIT 14: backend: 1 CPU # 1 inputs
+ SPLIT 12: backend: 1 CPU # 1 inputs
   input 0: ffn_gate_par-17 (CUDA0)
 node 0 (AXPY_SPARSE): ffn_down_sparse_cpu-17 | src 0: blk.17.ffn_down_t.weight, src 1: CPU#ffn_gate_par-17#0, src 2: CPU#pred_out-17#0, src 3: blk.17.ffn_gpu_neu_mask, 
 
- SPLIT 15: backend: 0 CUDA0 # 1 inputs
+ SPLIT 13: backend: 0 CUDA0 # 1 inputs
   input 0: ffn_down_sparse_cpu-17 (  CPU)
 node 0 (ADD): ffn_down_sparse_merged-17 | src 0: CUDA0#ffn_down_sparse_cpu-17#0, src 1: ffn_down_sparse_gpu-17, 
 node 1 (ADD): l_out-17 | src 0: ffn_down_sparse_merged-17, src 1: ffn_inp-17, 
@@ -861,10 +853,10 @@ node 19 (PERMUTE): cache_v_l18 (view) (permuted) | src 0: cache_v_l18 (view),
 node 20 (VIEW): cache_k_l18 (view) | src 0: cache_k_l18, 
 node 21 (PERMUTE): cache_k_l18 (view) (permuted) | src 0: cache_k_l18 (view), 
 node 22 (PERMUTE): Qcur-18 (permuted) | src 0: Qcur-18, 
-node 23 (MUL_MAT): node_814 | src 0: cache_k_l18 (view) (permuted), src 1: Qcur-18 (permuted), 
-node 24 (SOFT_MAX): node_815 | src 0: node_814, src 1: leaf_9, 
-node 25 (MUL_MAT): node_816 | src 0: cache_v_l18 (view) (permuted), src 1: node_815, 
-node 26 (PERMUTE):  (permuted) | src 0: node_816, 
+node 23 (MUL_MAT): node_810 | src 0: cache_k_l18 (view) (permuted), src 1: Qcur-18 (permuted), 
+node 24 (SOFT_MAX): node_811 | src 0: node_810, src 1: leaf_9, 
+node 25 (MUL_MAT): node_812 | src 0: cache_v_l18 (view) (permuted), src 1: node_811, 
+node 26 (PERMUTE):  (permuted) | src 0: node_812, 
 node 27 (CONT): kqv_out-18 | src 0:  (permuted), 
 node 28 (MUL_MAT): attn_out-18 | src 0: blk.18.attn_output.weight, src 1: kqv_out-18, 
 node 29 (ADD): ffn_inp-18 | src 0: attn_out-18, src 1: l_out-17, 
@@ -879,31 +871,30 @@ node 37 (UNARY): pred_out-19 | src 0: pred_down_b-19,
 node 38 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-18 | src 0: blk.18.ffn_gpu_up.weight, src 1: ffn_norm-18, src 2: pred_out-18, src 3: blk.18.ffn_gpu_neu_idx, 
 node 39 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-18 | src 0: blk.18.ffn_gpu_gate.weight, src 1: ffn_norm-18, src 2: pred_out-18, src 3: blk.18.ffn_gpu_neu_idx, 
 
- SPLIT 16: backend: 0 CUDA0 # 0 inputs
-node 0 (RELOAD): ffn_gate_reload-19 | src 0: blk.19.ffn_gpu_gate.weight, src 1: blk.19.ffn_gate.weight, src 2: pred_out-19, src 3: blk.19.ffn_gpu_neu_idx, src 4: blk.19.ffn_gpu_neu_mask, src 5: blk.19.ffn_dfr_score, 
-node 1 (RELOAD): ffn_up_reload-19 | src 0: blk.19.ffn_gpu_up.weight, src 1: blk.19.ffn_up.weight, src 2: pred_out-19, src 3: blk.19.ffn_gpu_neu_idx, src 4: blk.19.ffn_gpu_neu_mask, src 5: blk.19.ffn_dfr_score, 
-node 2 (RELOAD): ffn_down_reload-19 | src 0: blk.19.ffn_gpu_down_t.weight, src 1: blk.19.ffn_down_t.weight, src 2: pred_out-19, src 3: blk.19.ffn_gpu_neu_idx, src 4: blk.19.ffn_gpu_neu_mask, src 5: blk.19.ffn_dfr_score, 
-
- SPLIT 17: backend: 1 CPU # 2 inputs
+ SPLIT 14: backend: 1 CPU # 2 inputs
   input 0: ffn_norm-18 (CUDA0)
   input 1: pred_out-18 (CUDA0)
 node 0 (MUL_MAT_SPARSE): ffn_up_sparse_cpu-18 | src 0: blk.18.ffn_up.weight, src 1: CPU#ffn_norm-18#0, src 2: CPU#pred_out-18#0, src 3: blk.18.ffn_gpu_neu_mask, 
 node 1 (MUL_MAT_SPARSE): ffn_gate_sparse_cpu-18 | src 0: blk.18.ffn_gate.weight, src 1: CPU#ffn_norm-18#0, src 2: CPU#pred_out-18#0, src 3: blk.18.ffn_gpu_neu_mask, 
 
- SPLIT 18: backend: 0 CUDA0 # 2 inputs
+ SPLIT 15: backend: 0 CUDA0 # 2 inputs
   input 0: ffn_gate_sparse_cpu-18 (  CPU)
   input 1: ffn_up_sparse_cpu-18 (  CPU)
-node 0 (ADD): ffn_gate_sparse_merged-18 | src 0: ffn_gate_sparse_gpu-18, src 1: CUDA0#ffn_gate_sparse_cpu-18#0, 
-node 1 (UNARY): ffn_gate_act-18 | src 0: ffn_gate_sparse_merged-18, 
-node 2 (ADD): ffn_up_sparse_merged-18 | src 0: ffn_up_sparse_gpu-18, src 1: CUDA0#ffn_up_sparse_cpu-18#0, 
-node 3 (MUL): ffn_gate_par-18 | src 0: ffn_gate_act-18, src 1: ffn_up_sparse_merged-18, 
-node 4 (AXPY_SPARSE): ffn_down_sparse_gpu-18 | src 0: blk.18.ffn_gpu_down_t.weight, src 1: ffn_gate_par-18, src 2: pred_out-18, src 3: blk.18.ffn_gpu_neu_idx, 
+node 0 (RELOAD_PLAN): ffn_reload_plan-19 | src 0: pred_out-19, 
+node 1 (RELOAD_EXEC): ffn_gate_reload-19 | src 0: blk.19.ffn_gpu_gate.weight, src 1: blk.19.ffn_gate.weight, src 2: ffn_reload_plan-19, 
+node 2 (RELOAD_EXEC): ffn_up_reload-19 | src 0: blk.19.ffn_gpu_up.weight, src 1: blk.19.ffn_up.weight, src 2: ffn_reload_plan-19, 
+node 3 (RELOAD_EXEC): ffn_down_reload-19 | src 0: blk.19.ffn_gpu_down_t.weight, src 1: blk.19.ffn_down_t.weight, src 2: ffn_reload_plan-19, 
+node 4 (ADD): ffn_gate_sparse_merged-18 | src 0: ffn_gate_sparse_gpu-18, src 1: CUDA0#ffn_gate_sparse_cpu-18#0, 
+node 5 (UNARY): ffn_gate_act-18 | src 0: ffn_gate_sparse_merged-18, 
+node 6 (ADD): ffn_up_sparse_merged-18 | src 0: ffn_up_sparse_gpu-18, src 1: CUDA0#ffn_up_sparse_cpu-18#0, 
+node 7 (MUL): ffn_gate_par-18 | src 0: ffn_gate_act-18, src 1: ffn_up_sparse_merged-18, 
+node 8 (AXPY_SPARSE): ffn_down_sparse_gpu-18 | src 0: blk.18.ffn_gpu_down_t.weight, src 1: ffn_gate_par-18, src 2: pred_out-18, src 3: blk.18.ffn_gpu_neu_idx, 
 
- SPLIT 19: backend: 1 CPU # 1 inputs
+ SPLIT 16: backend: 1 CPU # 1 inputs
   input 0: ffn_gate_par-18 (CUDA0)
 node 0 (AXPY_SPARSE): ffn_down_sparse_cpu-18 | src 0: blk.18.ffn_down_t.weight, src 1: CPU#ffn_gate_par-18#0, src 2: CPU#pred_out-18#0, src 3: blk.18.ffn_gpu_neu_mask, 
 
- SPLIT 20: backend: 0 CUDA0 # 1 inputs
+ SPLIT 17: backend: 0 CUDA0 # 1 inputs
   input 0: ffn_down_sparse_cpu-18 (  CPU)
 node 0 (ADD): ffn_down_sparse_merged-18 | src 0: CUDA0#ffn_down_sparse_cpu-18#0, src 1: ffn_down_sparse_gpu-18, 
 node 1 (ADD): l_out-18 | src 0: ffn_down_sparse_merged-18, src 1: ffn_inp-18, 
@@ -928,10 +919,10 @@ node 19 (PERMUTE): cache_v_l19 (view) (permuted) | src 0: cache_v_l19 (view),
 node 20 (VIEW): cache_k_l19 (view) | src 0: cache_k_l19, 
 node 21 (PERMUTE): cache_k_l19 (view) (permuted) | src 0: cache_k_l19 (view), 
 node 22 (PERMUTE): Qcur-19 (permuted) | src 0: Qcur-19, 
-node 23 (MUL_MAT): node_865 | src 0: cache_k_l19 (view) (permuted), src 1: Qcur-19 (permuted), 
-node 24 (SOFT_MAX): node_866 | src 0: node_865, src 1: leaf_9, 
-node 25 (MUL_MAT): node_867 | src 0: cache_v_l19 (view) (permuted), src 1: node_866, 
-node 26 (PERMUTE):  (permuted) | src 0: node_867, 
+node 23 (MUL_MAT): node_862 | src 0: cache_k_l19 (view) (permuted), src 1: Qcur-19 (permuted), 
+node 24 (SOFT_MAX): node_863 | src 0: node_862, src 1: leaf_9, 
+node 25 (MUL_MAT): node_864 | src 0: cache_v_l19 (view) (permuted), src 1: node_863, 
+node 26 (PERMUTE):  (permuted) | src 0: node_864, 
 node 27 (CONT): kqv_out-19 | src 0:  (permuted), 
 node 28 (MUL_MAT): attn_out-19 | src 0: blk.19.attn_output.weight, src 1: kqv_out-19, 
 node 29 (ADD): ffn_inp-19 | src 0: attn_out-19, src 1: l_out-18, 
@@ -946,31 +937,30 @@ node 37 (UNARY): pred_out-20 | src 0: pred_down_b-20,
 node 38 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-19 | src 0: blk.19.ffn_gpu_up.weight, src 1: ffn_norm-19, src 2: pred_out-19, src 3: blk.19.ffn_gpu_neu_idx, 
 node 39 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-19 | src 0: blk.19.ffn_gpu_gate.weight, src 1: ffn_norm-19, src 2: pred_out-19, src 3: blk.19.ffn_gpu_neu_idx, 
 
- SPLIT 21: backend: 0 CUDA0 # 0 inputs
-node 0 (RELOAD): ffn_gate_reload-20 | src 0: blk.20.ffn_gpu_gate.weight, src 1: blk.20.ffn_gate.weight, src 2: pred_out-20, src 3: blk.20.ffn_gpu_neu_idx, src 4: blk.20.ffn_gpu_neu_mask, src 5: blk.20.ffn_dfr_score, 
-node 1 (RELOAD): ffn_up_reload-20 | src 0: blk.20.ffn_gpu_up.weight, src 1: blk.20.ffn_up.weight, src 2: pred_out-20, src 3: blk.20.ffn_gpu_neu_idx, src 4: blk.20.ffn_gpu_neu_mask, src 5: blk.20.ffn_dfr_score, 
-node 2 (RELOAD): ffn_down_reload-20 | src 0: blk.20.ffn_gpu_down_t.weight, src 1: blk.20.ffn_down_t.weight, src 2: pred_out-20, src 3: blk.20.ffn_gpu_neu_idx, src 4: blk.20.ffn_gpu_neu_mask, src 5: blk.20.ffn_dfr_score, 
-
- SPLIT 22: backend: 1 CPU # 2 inputs
+ SPLIT 18: backend: 1 CPU # 2 inputs
   input 0: ffn_norm-19 (CUDA0)
   input 1: pred_out-19 (CUDA0)
 node 0 (MUL_MAT_SPARSE): ffn_up_sparse_cpu-19 | src 0: blk.19.ffn_up.weight, src 1: CPU#ffn_norm-19#0, src 2: CPU#pred_out-19#0, src 3: blk.19.ffn_gpu_neu_mask, 
 node 1 (MUL_MAT_SPARSE): ffn_gate_sparse_cpu-19 | src 0: blk.19.ffn_gate.weight, src 1: CPU#ffn_norm-19#0, src 2: CPU#pred_out-19#0, src 3: blk.19.ffn_gpu_neu_mask, 
 
- SPLIT 23: backend: 0 CUDA0 # 2 inputs
+ SPLIT 19: backend: 0 CUDA0 # 2 inputs
   input 0: ffn_gate_sparse_cpu-19 (  CPU)
   input 1: ffn_up_sparse_cpu-19 (  CPU)
-node 0 (ADD): ffn_gate_sparse_merged-19 | src 0: ffn_gate_sparse_gpu-19, src 1: CUDA0#ffn_gate_sparse_cpu-19#0, 
-node 1 (UNARY): ffn_gate_act-19 | src 0: ffn_gate_sparse_merged-19, 
-node 2 (ADD): ffn_up_sparse_merged-19 | src 0: ffn_up_sparse_gpu-19, src 1: CUDA0#ffn_up_sparse_cpu-19#0, 
-node 3 (MUL): ffn_gate_par-19 | src 0: ffn_gate_act-19, src 1: ffn_up_sparse_merged-19, 
-node 4 (AXPY_SPARSE): ffn_down_sparse_gpu-19 | src 0: blk.19.ffn_gpu_down_t.weight, src 1: ffn_gate_par-19, src 2: pred_out-19, src 3: blk.19.ffn_gpu_neu_idx, 
+node 0 (RELOAD_PLAN): ffn_reload_plan-20 | src 0: pred_out-20, 
+node 1 (RELOAD_EXEC): ffn_gate_reload-20 | src 0: blk.20.ffn_gpu_gate.weight, src 1: blk.20.ffn_gate.weight, src 2: ffn_reload_plan-20, 
+node 2 (RELOAD_EXEC): ffn_up_reload-20 | src 0: blk.20.ffn_gpu_up.weight, src 1: blk.20.ffn_up.weight, src 2: ffn_reload_plan-20, 
+node 3 (RELOAD_EXEC): ffn_down_reload-20 | src 0: blk.20.ffn_gpu_down_t.weight, src 1: blk.20.ffn_down_t.weight, src 2: ffn_reload_plan-20, 
+node 4 (ADD): ffn_gate_sparse_merged-19 | src 0: ffn_gate_sparse_gpu-19, src 1: CUDA0#ffn_gate_sparse_cpu-19#0, 
+node 5 (UNARY): ffn_gate_act-19 | src 0: ffn_gate_sparse_merged-19, 
+node 6 (ADD): ffn_up_sparse_merged-19 | src 0: ffn_up_sparse_gpu-19, src 1: CUDA0#ffn_up_sparse_cpu-19#0, 
+node 7 (MUL): ffn_gate_par-19 | src 0: ffn_gate_act-19, src 1: ffn_up_sparse_merged-19, 
+node 8 (AXPY_SPARSE): ffn_down_sparse_gpu-19 | src 0: blk.19.ffn_gpu_down_t.weight, src 1: ffn_gate_par-19, src 2: pred_out-19, src 3: blk.19.ffn_gpu_neu_idx, 
 
- SPLIT 24: backend: 1 CPU # 1 inputs
+ SPLIT 20: backend: 1 CPU # 1 inputs
   input 0: ffn_gate_par-19 (CUDA0)
 node 0 (AXPY_SPARSE): ffn_down_sparse_cpu-19 | src 0: blk.19.ffn_down_t.weight, src 1: CPU#ffn_gate_par-19#0, src 2: CPU#pred_out-19#0, src 3: blk.19.ffn_gpu_neu_mask, 
 
- SPLIT 25: backend: 0 CUDA0 # 1 inputs
+ SPLIT 21: backend: 0 CUDA0 # 1 inputs
   input 0: ffn_down_sparse_cpu-19 (  CPU)
 node 0 (ADD): ffn_down_sparse_merged-19 | src 0: CUDA0#ffn_down_sparse_cpu-19#0, src 1: ffn_down_sparse_gpu-19, 
 node 1 (ADD): l_out-19 | src 0: ffn_down_sparse_merged-19, src 1: ffn_inp-19, 
@@ -995,10 +985,10 @@ node 19 (PERMUTE): cache_v_l20 (view) (permuted) | src 0: cache_v_l20 (view),
 node 20 (VIEW): cache_k_l20 (view) | src 0: cache_k_l20, 
 node 21 (PERMUTE): cache_k_l20 (view) (permuted) | src 0: cache_k_l20 (view), 
 node 22 (PERMUTE): Qcur-20 (permuted) | src 0: Qcur-20, 
-node 23 (MUL_MAT): node_916 | src 0: cache_k_l20 (view) (permuted), src 1: Qcur-20 (permuted), 
-node 24 (SOFT_MAX): node_917 | src 0: node_916, src 1: leaf_9, 
-node 25 (MUL_MAT): node_918 | src 0: cache_v_l20 (view) (permuted), src 1: node_917, 
-node 26 (PERMUTE):  (permuted) | src 0: node_918, 
+node 23 (MUL_MAT): node_914 | src 0: cache_k_l20 (view) (permuted), src 1: Qcur-20 (permuted), 
+node 24 (SOFT_MAX): node_915 | src 0: node_914, src 1: leaf_9, 
+node 25 (MUL_MAT): node_916 | src 0: cache_v_l20 (view) (permuted), src 1: node_915, 
+node 26 (PERMUTE):  (permuted) | src 0: node_916, 
 node 27 (CONT): kqv_out-20 | src 0:  (permuted), 
 node 28 (MUL_MAT): attn_out-20 | src 0: blk.20.attn_output.weight, src 1: kqv_out-20, 
 node 29 (ADD): ffn_inp-20 | src 0: attn_out-20, src 1: l_out-19, 
@@ -1013,31 +1003,30 @@ node 37 (UNARY): pred_out-21 | src 0: pred_down_b-21,
 node 38 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-20 | src 0: blk.20.ffn_gpu_up.weight, src 1: ffn_norm-20, src 2: pred_out-20, src 3: blk.20.ffn_gpu_neu_idx, 
 node 39 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-20 | src 0: blk.20.ffn_gpu_gate.weight, src 1: ffn_norm-20, src 2: pred_out-20, src 3: blk.20.ffn_gpu_neu_idx, 
 
- SPLIT 26: backend: 0 CUDA0 # 0 inputs
-node 0 (RELOAD): ffn_gate_reload-21 | src 0: blk.21.ffn_gpu_gate.weight, src 1: blk.21.ffn_gate.weight, src 2: pred_out-21, src 3: blk.21.ffn_gpu_neu_idx, src 4: blk.21.ffn_gpu_neu_mask, src 5: blk.21.ffn_dfr_score, 
-node 1 (RELOAD): ffn_up_reload-21 | src 0: blk.21.ffn_gpu_up.weight, src 1: blk.21.ffn_up.weight, src 2: pred_out-21, src 3: blk.21.ffn_gpu_neu_idx, src 4: blk.21.ffn_gpu_neu_mask, src 5: blk.21.ffn_dfr_score, 
-node 2 (RELOAD): ffn_down_reload-21 | src 0: blk.21.ffn_gpu_down_t.weight, src 1: blk.21.ffn_down_t.weight, src 2: pred_out-21, src 3: blk.21.ffn_gpu_neu_idx, src 4: blk.21.ffn_gpu_neu_mask, src 5: blk.21.ffn_dfr_score, 
-
- SPLIT 27: backend: 1 CPU # 2 inputs
+ SPLIT 22: backend: 1 CPU # 2 inputs
   input 0: ffn_norm-20 (CUDA0)
   input 1: pred_out-20 (CUDA0)
 node 0 (MUL_MAT_SPARSE): ffn_up_sparse_cpu-20 | src 0: blk.20.ffn_up.weight, src 1: CPU#ffn_norm-20#0, src 2: CPU#pred_out-20#0, src 3: blk.20.ffn_gpu_neu_mask, 
 node 1 (MUL_MAT_SPARSE): ffn_gate_sparse_cpu-20 | src 0: blk.20.ffn_gate.weight, src 1: CPU#ffn_norm-20#0, src 2: CPU#pred_out-20#0, src 3: blk.20.ffn_gpu_neu_mask, 
 
- SPLIT 28: backend: 0 CUDA0 # 2 inputs
+ SPLIT 23: backend: 0 CUDA0 # 2 inputs
   input 0: ffn_gate_sparse_cpu-20 (  CPU)
   input 1: ffn_up_sparse_cpu-20 (  CPU)
-node 0 (ADD): ffn_gate_sparse_merged-20 | src 0: ffn_gate_sparse_gpu-20, src 1: CUDA0#ffn_gate_sparse_cpu-20#0, 
-node 1 (UNARY): ffn_gate_act-20 | src 0: ffn_gate_sparse_merged-20, 
-node 2 (ADD): ffn_up_sparse_merged-20 | src 0: ffn_up_sparse_gpu-20, src 1: CUDA0#ffn_up_sparse_cpu-20#0, 
-node 3 (MUL): ffn_gate_par-20 | src 0: ffn_gate_act-20, src 1: ffn_up_sparse_merged-20, 
-node 4 (AXPY_SPARSE): ffn_down_sparse_gpu-20 | src 0: blk.20.ffn_gpu_down_t.weight, src 1: ffn_gate_par-20, src 2: pred_out-20, src 3: blk.20.ffn_gpu_neu_idx, 
+node 0 (RELOAD_PLAN): ffn_reload_plan-21 | src 0: pred_out-21, 
+node 1 (RELOAD_EXEC): ffn_gate_reload-21 | src 0: blk.21.ffn_gpu_gate.weight, src 1: blk.21.ffn_gate.weight, src 2: ffn_reload_plan-21, 
+node 2 (RELOAD_EXEC): ffn_up_reload-21 | src 0: blk.21.ffn_gpu_up.weight, src 1: blk.21.ffn_up.weight, src 2: ffn_reload_plan-21, 
+node 3 (RELOAD_EXEC): ffn_down_reload-21 | src 0: blk.21.ffn_gpu_down_t.weight, src 1: blk.21.ffn_down_t.weight, src 2: ffn_reload_plan-21, 
+node 4 (ADD): ffn_gate_sparse_merged-20 | src 0: ffn_gate_sparse_gpu-20, src 1: CUDA0#ffn_gate_sparse_cpu-20#0, 
+node 5 (UNARY): ffn_gate_act-20 | src 0: ffn_gate_sparse_merged-20, 
+node 6 (ADD): ffn_up_sparse_merged-20 | src 0: ffn_up_sparse_gpu-20, src 1: CUDA0#ffn_up_sparse_cpu-20#0, 
+node 7 (MUL): ffn_gate_par-20 | src 0: ffn_gate_act-20, src 1: ffn_up_sparse_merged-20, 
+node 8 (AXPY_SPARSE): ffn_down_sparse_gpu-20 | src 0: blk.20.ffn_gpu_down_t.weight, src 1: ffn_gate_par-20, src 2: pred_out-20, src 3: blk.20.ffn_gpu_neu_idx, 
 
- SPLIT 29: backend: 1 CPU # 1 inputs
+ SPLIT 24: backend: 1 CPU # 1 inputs
   input 0: ffn_gate_par-20 (CUDA0)
 node 0 (AXPY_SPARSE): ffn_down_sparse_cpu-20 | src 0: blk.20.ffn_down_t.weight, src 1: CPU#ffn_gate_par-20#0, src 2: CPU#pred_out-20#0, src 3: blk.20.ffn_gpu_neu_mask, 
 
- SPLIT 30: backend: 0 CUDA0 # 1 inputs
+ SPLIT 25: backend: 0 CUDA0 # 1 inputs
   input 0: ffn_down_sparse_cpu-20 (  CPU)
 node 0 (ADD): ffn_down_sparse_merged-20 | src 0: CUDA0#ffn_down_sparse_cpu-20#0, src 1: ffn_down_sparse_gpu-20, 
 node 1 (ADD): l_out-20 | src 0: ffn_down_sparse_merged-20, src 1: ffn_inp-20, 
@@ -1062,10 +1051,10 @@ node 19 (PERMUTE): cache_v_l21 (view) (permuted) | src 0: cache_v_l21 (view),
 node 20 (VIEW): cache_k_l21 (view) | src 0: cache_k_l21, 
 node 21 (PERMUTE): cache_k_l21 (view) (permuted) | src 0: cache_k_l21 (view), 
 node 22 (PERMUTE): Qcur-21 (permuted) | src 0: Qcur-21, 
-node 23 (MUL_MAT): node_967 | src 0: cache_k_l21 (view) (permuted), src 1: Qcur-21 (permuted), 
-node 24 (SOFT_MAX): node_968 | src 0: node_967, src 1: leaf_9, 
-node 25 (MUL_MAT): node_969 | src 0: cache_v_l21 (view) (permuted), src 1: node_968, 
-node 26 (PERMUTE):  (permuted) | src 0: node_969, 
+node 23 (MUL_MAT): node_966 | src 0: cache_k_l21 (view) (permuted), src 1: Qcur-21 (permuted), 
+node 24 (SOFT_MAX): node_967 | src 0: node_966, src 1: leaf_9, 
+node 25 (MUL_MAT): node_968 | src 0: cache_v_l21 (view) (permuted), src 1: node_967, 
+node 26 (PERMUTE):  (permuted) | src 0: node_968, 
 node 27 (CONT): kqv_out-21 | src 0:  (permuted), 
 node 28 (MUL_MAT): attn_out-21 | src 0: blk.21.attn_output.weight, src 1: kqv_out-21, 
 node 29 (ADD): ffn_inp-21 | src 0: attn_out-21, src 1: l_out-20, 
@@ -1080,31 +1069,30 @@ node 37 (UNARY): pred_out-22 | src 0: pred_down_b-22,
 node 38 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-21 | src 0: blk.21.ffn_gpu_up.weight, src 1: ffn_norm-21, src 2: pred_out-21, src 3: blk.21.ffn_gpu_neu_idx, 
 node 39 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-21 | src 0: blk.21.ffn_gpu_gate.weight, src 1: ffn_norm-21, src 2: pred_out-21, src 3: blk.21.ffn_gpu_neu_idx, 
 
- SPLIT 31: backend: 0 CUDA0 # 0 inputs
-node 0 (RELOAD): ffn_gate_reload-22 | src 0: blk.22.ffn_gpu_gate.weight, src 1: blk.22.ffn_gate.weight, src 2: pred_out-22, src 3: blk.22.ffn_gpu_neu_idx, src 4: blk.22.ffn_gpu_neu_mask, src 5: blk.22.ffn_dfr_score, 
-node 1 (RELOAD): ffn_up_reload-22 | src 0: blk.22.ffn_gpu_up.weight, src 1: blk.22.ffn_up.weight, src 2: pred_out-22, src 3: blk.22.ffn_gpu_neu_idx, src 4: blk.22.ffn_gpu_neu_mask, src 5: blk.22.ffn_dfr_score, 
-node 2 (RELOAD): ffn_down_reload-22 | src 0: blk.22.ffn_gpu_down_t.weight, src 1: blk.22.ffn_down_t.weight, src 2: pred_out-22, src 3: blk.22.ffn_gpu_neu_idx, src 4: blk.22.ffn_gpu_neu_mask, src 5: blk.22.ffn_dfr_score, 
-
- SPLIT 32: backend: 1 CPU # 2 inputs
+ SPLIT 26: backend: 1 CPU # 2 inputs
   input 0: ffn_norm-21 (CUDA0)
   input 1: pred_out-21 (CUDA0)
 node 0 (MUL_MAT_SPARSE): ffn_up_sparse_cpu-21 | src 0: blk.21.ffn_up.weight, src 1: CPU#ffn_norm-21#0, src 2: CPU#pred_out-21#0, src 3: blk.21.ffn_gpu_neu_mask, 
 node 1 (MUL_MAT_SPARSE): ffn_gate_sparse_cpu-21 | src 0: blk.21.ffn_gate.weight, src 1: CPU#ffn_norm-21#0, src 2: CPU#pred_out-21#0, src 3: blk.21.ffn_gpu_neu_mask, 
 
- SPLIT 33: backend: 0 CUDA0 # 2 inputs
+ SPLIT 27: backend: 0 CUDA0 # 2 inputs
   input 0: ffn_gate_sparse_cpu-21 (  CPU)
   input 1: ffn_up_sparse_cpu-21 (  CPU)
-node 0 (ADD): ffn_gate_sparse_merged-21 | src 0: ffn_gate_sparse_gpu-21, src 1: CUDA0#ffn_gate_sparse_cpu-21#0, 
-node 1 (UNARY): ffn_gate_act-21 | src 0: ffn_gate_sparse_merged-21, 
-node 2 (ADD): ffn_up_sparse_merged-21 | src 0: ffn_up_sparse_gpu-21, src 1: CUDA0#ffn_up_sparse_cpu-21#0, 
-node 3 (MUL): ffn_gate_par-21 | src 0: ffn_gate_act-21, src 1: ffn_up_sparse_merged-21, 
-node 4 (AXPY_SPARSE): ffn_down_sparse_gpu-21 | src 0: blk.21.ffn_gpu_down_t.weight, src 1: ffn_gate_par-21, src 2: pred_out-21, src 3: blk.21.ffn_gpu_neu_idx, 
+node 0 (RELOAD_PLAN): ffn_reload_plan-22 | src 0: pred_out-22, 
+node 1 (RELOAD_EXEC): ffn_gate_reload-22 | src 0: blk.22.ffn_gpu_gate.weight, src 1: blk.22.ffn_gate.weight, src 2: ffn_reload_plan-22, 
+node 2 (RELOAD_EXEC): ffn_up_reload-22 | src 0: blk.22.ffn_gpu_up.weight, src 1: blk.22.ffn_up.weight, src 2: ffn_reload_plan-22, 
+node 3 (RELOAD_EXEC): ffn_down_reload-22 | src 0: blk.22.ffn_gpu_down_t.weight, src 1: blk.22.ffn_down_t.weight, src 2: ffn_reload_plan-22, 
+node 4 (ADD): ffn_gate_sparse_merged-21 | src 0: ffn_gate_sparse_gpu-21, src 1: CUDA0#ffn_gate_sparse_cpu-21#0, 
+node 5 (UNARY): ffn_gate_act-21 | src 0: ffn_gate_sparse_merged-21, 
+node 6 (ADD): ffn_up_sparse_merged-21 | src 0: ffn_up_sparse_gpu-21, src 1: CUDA0#ffn_up_sparse_cpu-21#0, 
+node 7 (MUL): ffn_gate_par-21 | src 0: ffn_gate_act-21, src 1: ffn_up_sparse_merged-21, 
+node 8 (AXPY_SPARSE): ffn_down_sparse_gpu-21 | src 0: blk.21.ffn_gpu_down_t.weight, src 1: ffn_gate_par-21, src 2: pred_out-21, src 3: blk.21.ffn_gpu_neu_idx, 
 
- SPLIT 34: backend: 1 CPU # 1 inputs
+ SPLIT 28: backend: 1 CPU # 1 inputs
   input 0: ffn_gate_par-21 (CUDA0)
 node 0 (AXPY_SPARSE): ffn_down_sparse_cpu-21 | src 0: blk.21.ffn_down_t.weight, src 1: CPU#ffn_gate_par-21#0, src 2: CPU#pred_out-21#0, src 3: blk.21.ffn_gpu_neu_mask, 
 
- SPLIT 35: backend: 0 CUDA0 # 1 inputs
+ SPLIT 29: backend: 0 CUDA0 # 1 inputs
   input 0: ffn_down_sparse_cpu-21 (  CPU)
 node 0 (ADD): ffn_down_sparse_merged-21 | src 0: CUDA0#ffn_down_sparse_cpu-21#0, src 1: ffn_down_sparse_gpu-21, 
 node 1 (ADD): l_out-21 | src 0: ffn_down_sparse_merged-21, src 1: ffn_inp-21, 
@@ -1147,31 +1135,30 @@ node 37 (UNARY): pred_out-23 | src 0: pred_down_b-23,
 node 38 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-22 | src 0: blk.22.ffn_gpu_up.weight, src 1: ffn_norm-22, src 2: pred_out-22, src 3: blk.22.ffn_gpu_neu_idx, 
 node 39 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-22 | src 0: blk.22.ffn_gpu_gate.weight, src 1: ffn_norm-22, src 2: pred_out-22, src 3: blk.22.ffn_gpu_neu_idx, 
 
- SPLIT 36: backend: 0 CUDA0 # 0 inputs
-node 0 (RELOAD): ffn_gate_reload-23 | src 0: blk.23.ffn_gpu_gate.weight, src 1: blk.23.ffn_gate.weight, src 2: pred_out-23, src 3: blk.23.ffn_gpu_neu_idx, src 4: blk.23.ffn_gpu_neu_mask, src 5: blk.23.ffn_dfr_score, 
-node 1 (RELOAD): ffn_up_reload-23 | src 0: blk.23.ffn_gpu_up.weight, src 1: blk.23.ffn_up.weight, src 2: pred_out-23, src 3: blk.23.ffn_gpu_neu_idx, src 4: blk.23.ffn_gpu_neu_mask, src 5: blk.23.ffn_dfr_score, 
-node 2 (RELOAD): ffn_down_reload-23 | src 0: blk.23.ffn_gpu_down_t.weight, src 1: blk.23.ffn_down_t.weight, src 2: pred_out-23, src 3: blk.23.ffn_gpu_neu_idx, src 4: blk.23.ffn_gpu_neu_mask, src 5: blk.23.ffn_dfr_score, 
-
- SPLIT 37: backend: 1 CPU # 2 inputs
+ SPLIT 30: backend: 1 CPU # 2 inputs
   input 0: ffn_norm-22 (CUDA0)
   input 1: pred_out-22 (CUDA0)
 node 0 (MUL_MAT_SPARSE): ffn_up_sparse_cpu-22 | src 0: blk.22.ffn_up.weight, src 1: CPU#ffn_norm-22#0, src 2: CPU#pred_out-22#0, src 3: blk.22.ffn_gpu_neu_mask, 
 node 1 (MUL_MAT_SPARSE): ffn_gate_sparse_cpu-22 | src 0: blk.22.ffn_gate.weight, src 1: CPU#ffn_norm-22#0, src 2: CPU#pred_out-22#0, src 3: blk.22.ffn_gpu_neu_mask, 
 
- SPLIT 38: backend: 0 CUDA0 # 2 inputs
+ SPLIT 31: backend: 0 CUDA0 # 2 inputs
   input 0: ffn_gate_sparse_cpu-22 (  CPU)
   input 1: ffn_up_sparse_cpu-22 (  CPU)
-node 0 (ADD): ffn_gate_sparse_merged-22 | src 0: ffn_gate_sparse_gpu-22, src 1: CUDA0#ffn_gate_sparse_cpu-22#0, 
-node 1 (UNARY): ffn_gate_act-22 | src 0: ffn_gate_sparse_merged-22, 
-node 2 (ADD): ffn_up_sparse_merged-22 | src 0: ffn_up_sparse_gpu-22, src 1: CUDA0#ffn_up_sparse_cpu-22#0, 
-node 3 (MUL): ffn_gate_par-22 | src 0: ffn_gate_act-22, src 1: ffn_up_sparse_merged-22, 
-node 4 (AXPY_SPARSE): ffn_down_sparse_gpu-22 | src 0: blk.22.ffn_gpu_down_t.weight, src 1: ffn_gate_par-22, src 2: pred_out-22, src 3: blk.22.ffn_gpu_neu_idx, 
+node 0 (RELOAD_PLAN): ffn_reload_plan-23 | src 0: pred_out-23, 
+node 1 (RELOAD_EXEC): ffn_gate_reload-23 | src 0: blk.23.ffn_gpu_gate.weight, src 1: blk.23.ffn_gate.weight, src 2: ffn_reload_plan-23, 
+node 2 (RELOAD_EXEC): ffn_up_reload-23 | src 0: blk.23.ffn_gpu_up.weight, src 1: blk.23.ffn_up.weight, src 2: ffn_reload_plan-23, 
+node 3 (RELOAD_EXEC): ffn_down_reload-23 | src 0: blk.23.ffn_gpu_down_t.weight, src 1: blk.23.ffn_down_t.weight, src 2: ffn_reload_plan-23, 
+node 4 (ADD): ffn_gate_sparse_merged-22 | src 0: ffn_gate_sparse_gpu-22, src 1: CUDA0#ffn_gate_sparse_cpu-22#0, 
+node 5 (UNARY): ffn_gate_act-22 | src 0: ffn_gate_sparse_merged-22, 
+node 6 (ADD): ffn_up_sparse_merged-22 | src 0: ffn_up_sparse_gpu-22, src 1: CUDA0#ffn_up_sparse_cpu-22#0, 
+node 7 (MUL): ffn_gate_par-22 | src 0: ffn_gate_act-22, src 1: ffn_up_sparse_merged-22, 
+node 8 (AXPY_SPARSE): ffn_down_sparse_gpu-22 | src 0: blk.22.ffn_gpu_down_t.weight, src 1: ffn_gate_par-22, src 2: pred_out-22, src 3: blk.22.ffn_gpu_neu_idx, 
 
- SPLIT 39: backend: 1 CPU # 1 inputs
+ SPLIT 32: backend: 1 CPU # 1 inputs
   input 0: ffn_gate_par-22 (CUDA0)
 node 0 (AXPY_SPARSE): ffn_down_sparse_cpu-22 | src 0: blk.22.ffn_down_t.weight, src 1: CPU#ffn_gate_par-22#0, src 2: CPU#pred_out-22#0, src 3: blk.22.ffn_gpu_neu_mask, 
 
- SPLIT 40: backend: 0 CUDA0 # 1 inputs
+ SPLIT 33: backend: 0 CUDA0 # 1 inputs
   input 0: ffn_down_sparse_cpu-22 (  CPU)
 node 0 (ADD): ffn_down_sparse_merged-22 | src 0: CUDA0#ffn_down_sparse_cpu-22#0, src 1: ffn_down_sparse_gpu-22, 
 node 1 (ADD): l_out-22 | src 0: ffn_down_sparse_merged-22, src 1: ffn_inp-22, 
@@ -1196,10 +1183,10 @@ node 19 (PERMUTE): cache_v_l23 (view) (permuted) | src 0: cache_v_l23 (view),
 node 20 (VIEW): cache_k_l23 (view) | src 0: cache_k_l23, 
 node 21 (PERMUTE): cache_k_l23 (view) (permuted) | src 0: cache_k_l23 (view), 
 node 22 (PERMUTE): Qcur-23 (permuted) | src 0: Qcur-23, 
-node 23 (MUL_MAT): node_1069 | src 0: cache_k_l23 (view) (permuted), src 1: Qcur-23 (permuted), 
-node 24 (SOFT_MAX): node_1070 | src 0: node_1069, src 1: leaf_9, 
-node 25 (MUL_MAT): node_1071 | src 0: cache_v_l23 (view) (permuted), src 1: node_1070, 
-node 26 (PERMUTE):  (permuted) | src 0: node_1071, 
+node 23 (MUL_MAT): node_1070 | src 0: cache_k_l23 (view) (permuted), src 1: Qcur-23 (permuted), 
+node 24 (SOFT_MAX): node_1071 | src 0: node_1070, src 1: leaf_9, 
+node 25 (MUL_MAT): node_1072 | src 0: cache_v_l23 (view) (permuted), src 1: node_1071, 
+node 26 (PERMUTE):  (permuted) | src 0: node_1072, 
 node 27 (CONT): kqv_out-23 | src 0:  (permuted), 
 node 28 (MUL_MAT): attn_out-23 | src 0: blk.23.attn_output.weight, src 1: kqv_out-23, 
 node 29 (ADD): ffn_inp-23 | src 0: attn_out-23, src 1: l_out-22, 
@@ -1214,31 +1201,30 @@ node 37 (UNARY): pred_out-24 | src 0: pred_down_b-24,
 node 38 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-23 | src 0: blk.23.ffn_gpu_up.weight, src 1: ffn_norm-23, src 2: pred_out-23, src 3: blk.23.ffn_gpu_neu_idx, 
 node 39 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-23 | src 0: blk.23.ffn_gpu_gate.weight, src 1: ffn_norm-23, src 2: pred_out-23, src 3: blk.23.ffn_gpu_neu_idx, 
 
- SPLIT 41: backend: 0 CUDA0 # 0 inputs
-node 0 (RELOAD): ffn_gate_reload-24 | src 0: blk.24.ffn_gpu_gate.weight, src 1: blk.24.ffn_gate.weight, src 2: pred_out-24, src 3: blk.24.ffn_gpu_neu_idx, src 4: blk.24.ffn_gpu_neu_mask, src 5: blk.24.ffn_dfr_score, 
-node 1 (RELOAD): ffn_up_reload-24 | src 0: blk.24.ffn_gpu_up.weight, src 1: blk.24.ffn_up.weight, src 2: pred_out-24, src 3: blk.24.ffn_gpu_neu_idx, src 4: blk.24.ffn_gpu_neu_mask, src 5: blk.24.ffn_dfr_score, 
-node 2 (RELOAD): ffn_down_reload-24 | src 0: blk.24.ffn_gpu_down_t.weight, src 1: blk.24.ffn_down_t.weight, src 2: pred_out-24, src 3: blk.24.ffn_gpu_neu_idx, src 4: blk.24.ffn_gpu_neu_mask, src 5: blk.24.ffn_dfr_score, 
-
- SPLIT 42: backend: 1 CPU # 2 inputs
+ SPLIT 34: backend: 1 CPU # 2 inputs
   input 0: ffn_norm-23 (CUDA0)
   input 1: pred_out-23 (CUDA0)
 node 0 (MUL_MAT_SPARSE): ffn_up_sparse_cpu-23 | src 0: blk.23.ffn_up.weight, src 1: CPU#ffn_norm-23#0, src 2: CPU#pred_out-23#0, src 3: blk.23.ffn_gpu_neu_mask, 
 node 1 (MUL_MAT_SPARSE): ffn_gate_sparse_cpu-23 | src 0: blk.23.ffn_gate.weight, src 1: CPU#ffn_norm-23#0, src 2: CPU#pred_out-23#0, src 3: blk.23.ffn_gpu_neu_mask, 
 
- SPLIT 43: backend: 0 CUDA0 # 2 inputs
+ SPLIT 35: backend: 0 CUDA0 # 2 inputs
   input 0: ffn_gate_sparse_cpu-23 (  CPU)
   input 1: ffn_up_sparse_cpu-23 (  CPU)
-node 0 (ADD): ffn_gate_sparse_merged-23 | src 0: ffn_gate_sparse_gpu-23, src 1: CUDA0#ffn_gate_sparse_cpu-23#0, 
-node 1 (UNARY): ffn_gate_act-23 | src 0: ffn_gate_sparse_merged-23, 
-node 2 (ADD): ffn_up_sparse_merged-23 | src 0: ffn_up_sparse_gpu-23, src 1: CUDA0#ffn_up_sparse_cpu-23#0, 
-node 3 (MUL): ffn_gate_par-23 | src 0: ffn_gate_act-23, src 1: ffn_up_sparse_merged-23, 
-node 4 (AXPY_SPARSE): ffn_down_sparse_gpu-23 | src 0: blk.23.ffn_gpu_down_t.weight, src 1: ffn_gate_par-23, src 2: pred_out-23, src 3: blk.23.ffn_gpu_neu_idx, 
+node 0 (RELOAD_PLAN): ffn_reload_plan-24 | src 0: pred_out-24, 
+node 1 (RELOAD_EXEC): ffn_gate_reload-24 | src 0: blk.24.ffn_gpu_gate.weight, src 1: blk.24.ffn_gate.weight, src 2: ffn_reload_plan-24, 
+node 2 (RELOAD_EXEC): ffn_up_reload-24 | src 0: blk.24.ffn_gpu_up.weight, src 1: blk.24.ffn_up.weight, src 2: ffn_reload_plan-24, 
+node 3 (RELOAD_EXEC): ffn_down_reload-24 | src 0: blk.24.ffn_gpu_down_t.weight, src 1: blk.24.ffn_down_t.weight, src 2: ffn_reload_plan-24, 
+node 4 (ADD): ffn_gate_sparse_merged-23 | src 0: ffn_gate_sparse_gpu-23, src 1: CUDA0#ffn_gate_sparse_cpu-23#0, 
+node 5 (UNARY): ffn_gate_act-23 | src 0: ffn_gate_sparse_merged-23, 
+node 6 (ADD): ffn_up_sparse_merged-23 | src 0: ffn_up_sparse_gpu-23, src 1: CUDA0#ffn_up_sparse_cpu-23#0, 
+node 7 (MUL): ffn_gate_par-23 | src 0: ffn_gate_act-23, src 1: ffn_up_sparse_merged-23, 
+node 8 (AXPY_SPARSE): ffn_down_sparse_gpu-23 | src 0: blk.23.ffn_gpu_down_t.weight, src 1: ffn_gate_par-23, src 2: pred_out-23, src 3: blk.23.ffn_gpu_neu_idx, 
 
- SPLIT 44: backend: 1 CPU # 1 inputs
+ SPLIT 36: backend: 1 CPU # 1 inputs
   input 0: ffn_gate_par-23 (CUDA0)
 node 0 (AXPY_SPARSE): ffn_down_sparse_cpu-23 | src 0: blk.23.ffn_down_t.weight, src 1: CPU#ffn_gate_par-23#0, src 2: CPU#pred_out-23#0, src 3: blk.23.ffn_gpu_neu_mask, 
 
- SPLIT 45: backend: 0 CUDA0 # 1 inputs
+ SPLIT 37: backend: 0 CUDA0 # 1 inputs
   input 0: ffn_down_sparse_cpu-23 (  CPU)
 node 0 (ADD): ffn_down_sparse_merged-23 | src 0: CUDA0#ffn_down_sparse_cpu-23#0, src 1: ffn_down_sparse_gpu-23, 
 node 1 (ADD): l_out-23 | src 0: ffn_down_sparse_merged-23, src 1: ffn_inp-23, 
@@ -1263,10 +1249,10 @@ node 19 (PERMUTE): cache_v_l24 (view) (permuted) | src 0: cache_v_l24 (view),
 node 20 (VIEW): cache_k_l24 (view) | src 0: cache_k_l24, 
 node 21 (PERMUTE): cache_k_l24 (view) (permuted) | src 0: cache_k_l24 (view), 
 node 22 (PERMUTE): Qcur-24 (permuted) | src 0: Qcur-24, 
-node 23 (MUL_MAT): node_1120 | src 0: cache_k_l24 (view) (permuted), src 1: Qcur-24 (permuted), 
-node 24 (SOFT_MAX): node_1121 | src 0: node_1120, src 1: leaf_9, 
-node 25 (MUL_MAT): node_1122 | src 0: cache_v_l24 (view) (permuted), src 1: node_1121, 
-node 26 (PERMUTE):  (permuted) | src 0: node_1122, 
+node 23 (MUL_MAT): node_1122 | src 0: cache_k_l24 (view) (permuted), src 1: Qcur-24 (permuted), 
+node 24 (SOFT_MAX): node_1123 | src 0: node_1122, src 1: leaf_9, 
+node 25 (MUL_MAT): node_1124 | src 0: cache_v_l24 (view) (permuted), src 1: node_1123, 
+node 26 (PERMUTE):  (permuted) | src 0: node_1124, 
 node 27 (CONT): kqv_out-24 | src 0:  (permuted), 
 node 28 (MUL_MAT): attn_out-24 | src 0: blk.24.attn_output.weight, src 1: kqv_out-24, 
 node 29 (ADD): ffn_inp-24 | src 0: attn_out-24, src 1: l_out-23, 
@@ -1281,31 +1267,30 @@ node 37 (UNARY): pred_out-25 | src 0: pred_down_b-25,
 node 38 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-24 | src 0: blk.24.ffn_gpu_up.weight, src 1: ffn_norm-24, src 2: pred_out-24, src 3: blk.24.ffn_gpu_neu_idx, 
 node 39 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-24 | src 0: blk.24.ffn_gpu_gate.weight, src 1: ffn_norm-24, src 2: pred_out-24, src 3: blk.24.ffn_gpu_neu_idx, 
 
- SPLIT 46: backend: 0 CUDA0 # 0 inputs
-node 0 (RELOAD): ffn_gate_reload-25 | src 0: blk.25.ffn_gpu_gate.weight, src 1: blk.25.ffn_gate.weight, src 2: pred_out-25, src 3: blk.25.ffn_gpu_neu_idx, src 4: blk.25.ffn_gpu_neu_mask, src 5: blk.25.ffn_dfr_score, 
-node 1 (RELOAD): ffn_up_reload-25 | src 0: blk.25.ffn_gpu_up.weight, src 1: blk.25.ffn_up.weight, src 2: pred_out-25, src 3: blk.25.ffn_gpu_neu_idx, src 4: blk.25.ffn_gpu_neu_mask, src 5: blk.25.ffn_dfr_score, 
-node 2 (RELOAD): ffn_down_reload-25 | src 0: blk.25.ffn_gpu_down_t.weight, src 1: blk.25.ffn_down_t.weight, src 2: pred_out-25, src 3: blk.25.ffn_gpu_neu_idx, src 4: blk.25.ffn_gpu_neu_mask, src 5: blk.25.ffn_dfr_score, 
-
- SPLIT 47: backend: 1 CPU # 2 inputs
+ SPLIT 38: backend: 1 CPU # 2 inputs
   input 0: ffn_norm-24 (CUDA0)
   input 1: pred_out-24 (CUDA0)
 node 0 (MUL_MAT_SPARSE): ffn_up_sparse_cpu-24 | src 0: blk.24.ffn_up.weight, src 1: CPU#ffn_norm-24#0, src 2: CPU#pred_out-24#0, src 3: blk.24.ffn_gpu_neu_mask, 
 node 1 (MUL_MAT_SPARSE): ffn_gate_sparse_cpu-24 | src 0: blk.24.ffn_gate.weight, src 1: CPU#ffn_norm-24#0, src 2: CPU#pred_out-24#0, src 3: blk.24.ffn_gpu_neu_mask, 
 
- SPLIT 48: backend: 0 CUDA0 # 2 inputs
+ SPLIT 39: backend: 0 CUDA0 # 2 inputs
   input 0: ffn_gate_sparse_cpu-24 (  CPU)
   input 1: ffn_up_sparse_cpu-24 (  CPU)
-node 0 (ADD): ffn_gate_sparse_merged-24 | src 0: ffn_gate_sparse_gpu-24, src 1: CUDA0#ffn_gate_sparse_cpu-24#0, 
-node 1 (UNARY): ffn_gate_act-24 | src 0: ffn_gate_sparse_merged-24, 
-node 2 (ADD): ffn_up_sparse_merged-24 | src 0: ffn_up_sparse_gpu-24, src 1: CUDA0#ffn_up_sparse_cpu-24#0, 
-node 3 (MUL): ffn_gate_par-24 | src 0: ffn_gate_act-24, src 1: ffn_up_sparse_merged-24, 
-node 4 (AXPY_SPARSE): ffn_down_sparse_gpu-24 | src 0: blk.24.ffn_gpu_down_t.weight, src 1: ffn_gate_par-24, src 2: pred_out-24, src 3: blk.24.ffn_gpu_neu_idx, 
+node 0 (RELOAD_PLAN): ffn_reload_plan-25 | src 0: pred_out-25, 
+node 1 (RELOAD_EXEC): ffn_gate_reload-25 | src 0: blk.25.ffn_gpu_gate.weight, src 1: blk.25.ffn_gate.weight, src 2: ffn_reload_plan-25, 
+node 2 (RELOAD_EXEC): ffn_up_reload-25 | src 0: blk.25.ffn_gpu_up.weight, src 1: blk.25.ffn_up.weight, src 2: ffn_reload_plan-25, 
+node 3 (RELOAD_EXEC): ffn_down_reload-25 | src 0: blk.25.ffn_gpu_down_t.weight, src 1: blk.25.ffn_down_t.weight, src 2: ffn_reload_plan-25, 
+node 4 (ADD): ffn_gate_sparse_merged-24 | src 0: ffn_gate_sparse_gpu-24, src 1: CUDA0#ffn_gate_sparse_cpu-24#0, 
+node 5 (UNARY): ffn_gate_act-24 | src 0: ffn_gate_sparse_merged-24, 
+node 6 (ADD): ffn_up_sparse_merged-24 | src 0: ffn_up_sparse_gpu-24, src 1: CUDA0#ffn_up_sparse_cpu-24#0, 
+node 7 (MUL): ffn_gate_par-24 | src 0: ffn_gate_act-24, src 1: ffn_up_sparse_merged-24, 
+node 8 (AXPY_SPARSE): ffn_down_sparse_gpu-24 | src 0: blk.24.ffn_gpu_down_t.weight, src 1: ffn_gate_par-24, src 2: pred_out-24, src 3: blk.24.ffn_gpu_neu_idx, 
 
- SPLIT 49: backend: 1 CPU # 1 inputs
+ SPLIT 40: backend: 1 CPU # 1 inputs
   input 0: ffn_gate_par-24 (CUDA0)
 node 0 (AXPY_SPARSE): ffn_down_sparse_cpu-24 | src 0: blk.24.ffn_down_t.weight, src 1: CPU#ffn_gate_par-24#0, src 2: CPU#pred_out-24#0, src 3: blk.24.ffn_gpu_neu_mask, 
 
- SPLIT 50: backend: 0 CUDA0 # 1 inputs
+ SPLIT 41: backend: 0 CUDA0 # 1 inputs
   input 0: ffn_down_sparse_cpu-24 (  CPU)
 node 0 (ADD): ffn_down_sparse_merged-24 | src 0: CUDA0#ffn_down_sparse_cpu-24#0, src 1: ffn_down_sparse_gpu-24, 
 node 1 (ADD): l_out-24 | src 0: ffn_down_sparse_merged-24, src 1: ffn_inp-24, 
@@ -1330,10 +1315,10 @@ node 19 (PERMUTE): cache_v_l25 (view) (permuted) | src 0: cache_v_l25 (view),
 node 20 (VIEW): cache_k_l25 (view) | src 0: cache_k_l25, 
 node 21 (PERMUTE): cache_k_l25 (view) (permuted) | src 0: cache_k_l25 (view), 
 node 22 (PERMUTE): Qcur-25 (permuted) | src 0: Qcur-25, 
-node 23 (MUL_MAT): node_1171 | src 0: cache_k_l25 (view) (permuted), src 1: Qcur-25 (permuted), 
-node 24 (SOFT_MAX): node_1172 | src 0: node_1171, src 1: leaf_9, 
-node 25 (MUL_MAT): node_1173 | src 0: cache_v_l25 (view) (permuted), src 1: node_1172, 
-node 26 (PERMUTE):  (permuted) | src 0: node_1173, 
+node 23 (MUL_MAT): node_1174 | src 0: cache_k_l25 (view) (permuted), src 1: Qcur-25 (permuted), 
+node 24 (SOFT_MAX): node_1175 | src 0: node_1174, src 1: leaf_9, 
+node 25 (MUL_MAT): node_1176 | src 0: cache_v_l25 (view) (permuted), src 1: node_1175, 
+node 26 (PERMUTE):  (permuted) | src 0: node_1176, 
 node 27 (CONT): kqv_out-25 | src 0:  (permuted), 
 node 28 (MUL_MAT): attn_out-25 | src 0: blk.25.attn_output.weight, src 1: kqv_out-25, 
 node 29 (ADD): ffn_inp-25 | src 0: attn_out-25, src 1: l_out-24, 
@@ -1348,31 +1333,30 @@ node 37 (UNARY): pred_out-26 | src 0: pred_down_b-26,
 node 38 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-25 | src 0: blk.25.ffn_gpu_up.weight, src 1: ffn_norm-25, src 2: pred_out-25, src 3: blk.25.ffn_gpu_neu_idx, 
 node 39 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-25 | src 0: blk.25.ffn_gpu_gate.weight, src 1: ffn_norm-25, src 2: pred_out-25, src 3: blk.25.ffn_gpu_neu_idx, 
 
- SPLIT 51: backend: 0 CUDA0 # 0 inputs
-node 0 (RELOAD): ffn_gate_reload-26 | src 0: blk.26.ffn_gpu_gate.weight, src 1: blk.26.ffn_gate.weight, src 2: pred_out-26, src 3: blk.26.ffn_gpu_neu_idx, src 4: blk.26.ffn_gpu_neu_mask, src 5: blk.26.ffn_dfr_score, 
-node 1 (RELOAD): ffn_up_reload-26 | src 0: blk.26.ffn_gpu_up.weight, src 1: blk.26.ffn_up.weight, src 2: pred_out-26, src 3: blk.26.ffn_gpu_neu_idx, src 4: blk.26.ffn_gpu_neu_mask, src 5: blk.26.ffn_dfr_score, 
-node 2 (RELOAD): ffn_down_reload-26 | src 0: blk.26.ffn_gpu_down_t.weight, src 1: blk.26.ffn_down_t.weight, src 2: pred_out-26, src 3: blk.26.ffn_gpu_neu_idx, src 4: blk.26.ffn_gpu_neu_mask, src 5: blk.26.ffn_dfr_score, 
-
- SPLIT 52: backend: 1 CPU # 2 inputs
+ SPLIT 42: backend: 1 CPU # 2 inputs
   input 0: ffn_norm-25 (CUDA0)
   input 1: pred_out-25 (CUDA0)
 node 0 (MUL_MAT_SPARSE): ffn_up_sparse_cpu-25 | src 0: blk.25.ffn_up.weight, src 1: CPU#ffn_norm-25#0, src 2: CPU#pred_out-25#0, src 3: blk.25.ffn_gpu_neu_mask, 
 node 1 (MUL_MAT_SPARSE): ffn_gate_sparse_cpu-25 | src 0: blk.25.ffn_gate.weight, src 1: CPU#ffn_norm-25#0, src 2: CPU#pred_out-25#0, src 3: blk.25.ffn_gpu_neu_mask, 
 
- SPLIT 53: backend: 0 CUDA0 # 2 inputs
+ SPLIT 43: backend: 0 CUDA0 # 2 inputs
   input 0: ffn_gate_sparse_cpu-25 (  CPU)
   input 1: ffn_up_sparse_cpu-25 (  CPU)
-node 0 (ADD): ffn_gate_sparse_merged-25 | src 0: ffn_gate_sparse_gpu-25, src 1: CUDA0#ffn_gate_sparse_cpu-25#0, 
-node 1 (UNARY): ffn_gate_act-25 | src 0: ffn_gate_sparse_merged-25, 
-node 2 (ADD): ffn_up_sparse_merged-25 | src 0: ffn_up_sparse_gpu-25, src 1: CUDA0#ffn_up_sparse_cpu-25#0, 
-node 3 (MUL): ffn_gate_par-25 | src 0: ffn_gate_act-25, src 1: ffn_up_sparse_merged-25, 
-node 4 (AXPY_SPARSE): ffn_down_sparse_gpu-25 | src 0: blk.25.ffn_gpu_down_t.weight, src 1: ffn_gate_par-25, src 2: pred_out-25, src 3: blk.25.ffn_gpu_neu_idx, 
+node 0 (RELOAD_PLAN): ffn_reload_plan-26 | src 0: pred_out-26, 
+node 1 (RELOAD_EXEC): ffn_gate_reload-26 | src 0: blk.26.ffn_gpu_gate.weight, src 1: blk.26.ffn_gate.weight, src 2: ffn_reload_plan-26, 
+node 2 (RELOAD_EXEC): ffn_up_reload-26 | src 0: blk.26.ffn_gpu_up.weight, src 1: blk.26.ffn_up.weight, src 2: ffn_reload_plan-26, 
+node 3 (RELOAD_EXEC): ffn_down_reload-26 | src 0: blk.26.ffn_gpu_down_t.weight, src 1: blk.26.ffn_down_t.weight, src 2: ffn_reload_plan-26, 
+node 4 (ADD): ffn_gate_sparse_merged-25 | src 0: ffn_gate_sparse_gpu-25, src 1: CUDA0#ffn_gate_sparse_cpu-25#0, 
+node 5 (UNARY): ffn_gate_act-25 | src 0: ffn_gate_sparse_merged-25, 
+node 6 (ADD): ffn_up_sparse_merged-25 | src 0: ffn_up_sparse_gpu-25, src 1: CUDA0#ffn_up_sparse_cpu-25#0, 
+node 7 (MUL): ffn_gate_par-25 | src 0: ffn_gate_act-25, src 1: ffn_up_sparse_merged-25, 
+node 8 (AXPY_SPARSE): ffn_down_sparse_gpu-25 | src 0: blk.25.ffn_gpu_down_t.weight, src 1: ffn_gate_par-25, src 2: pred_out-25, src 3: blk.25.ffn_gpu_neu_idx, 
 
- SPLIT 54: backend: 1 CPU # 1 inputs
+ SPLIT 44: backend: 1 CPU # 1 inputs
   input 0: ffn_gate_par-25 (CUDA0)
 node 0 (AXPY_SPARSE): ffn_down_sparse_cpu-25 | src 0: blk.25.ffn_down_t.weight, src 1: CPU#ffn_gate_par-25#0, src 2: CPU#pred_out-25#0, src 3: blk.25.ffn_gpu_neu_mask, 
 
- SPLIT 55: backend: 0 CUDA0 # 1 inputs
+ SPLIT 45: backend: 0 CUDA0 # 1 inputs
   input 0: ffn_down_sparse_cpu-25 (  CPU)
 node 0 (ADD): ffn_down_sparse_merged-25 | src 0: CUDA0#ffn_down_sparse_cpu-25#0, src 1: ffn_down_sparse_gpu-25, 
 node 1 (ADD): l_out-25 | src 0: ffn_down_sparse_merged-25, src 1: ffn_inp-25, 
@@ -1397,10 +1381,10 @@ node 19 (PERMUTE): cache_v_l26 (view) (permuted) | src 0: cache_v_l26 (view),
 node 20 (VIEW): cache_k_l26 (view) | src 0: cache_k_l26, 
 node 21 (PERMUTE): cache_k_l26 (view) (permuted) | src 0: cache_k_l26 (view), 
 node 22 (PERMUTE): Qcur-26 (permuted) | src 0: Qcur-26, 
-node 23 (MUL_MAT): node_1222 | src 0: cache_k_l26 (view) (permuted), src 1: Qcur-26 (permuted), 
-node 24 (SOFT_MAX): node_1223 | src 0: node_1222, src 1: leaf_9, 
-node 25 (MUL_MAT): node_1224 | src 0: cache_v_l26 (view) (permuted), src 1: node_1223, 
-node 26 (PERMUTE):  (permuted) | src 0: node_1224, 
+node 23 (MUL_MAT): node_1226 | src 0: cache_k_l26 (view) (permuted), src 1: Qcur-26 (permuted), 
+node 24 (SOFT_MAX): node_1227 | src 0: node_1226, src 1: leaf_9, 
+node 25 (MUL_MAT): node_1228 | src 0: cache_v_l26 (view) (permuted), src 1: node_1227, 
+node 26 (PERMUTE):  (permuted) | src 0: node_1228, 
 node 27 (CONT): kqv_out-26 | src 0:  (permuted), 
 node 28 (MUL_MAT): attn_out-26 | src 0: blk.26.attn_output.weight, src 1: kqv_out-26, 
 node 29 (ADD): ffn_inp-26 | src 0: attn_out-26, src 1: l_out-25, 
@@ -1415,31 +1399,30 @@ node 37 (UNARY): pred_out-27 | src 0: pred_down_b-27,
 node 38 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-26 | src 0: blk.26.ffn_gpu_up.weight, src 1: ffn_norm-26, src 2: pred_out-26, src 3: blk.26.ffn_gpu_neu_idx, 
 node 39 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-26 | src 0: blk.26.ffn_gpu_gate.weight, src 1: ffn_norm-26, src 2: pred_out-26, src 3: blk.26.ffn_gpu_neu_idx, 
 
- SPLIT 56: backend: 0 CUDA0 # 0 inputs
-node 0 (RELOAD): ffn_gate_reload-27 | src 0: blk.27.ffn_gpu_gate.weight, src 1: blk.27.ffn_gate.weight, src 2: pred_out-27, src 3: blk.27.ffn_gpu_neu_idx, src 4: blk.27.ffn_gpu_neu_mask, src 5: blk.27.ffn_dfr_score, 
-node 1 (RELOAD): ffn_up_reload-27 | src 0: blk.27.ffn_gpu_up.weight, src 1: blk.27.ffn_up.weight, src 2: pred_out-27, src 3: blk.27.ffn_gpu_neu_idx, src 4: blk.27.ffn_gpu_neu_mask, src 5: blk.27.ffn_dfr_score, 
-node 2 (RELOAD): ffn_down_reload-27 | src 0: blk.27.ffn_gpu_down_t.weight, src 1: blk.27.ffn_down_t.weight, src 2: pred_out-27, src 3: blk.27.ffn_gpu_neu_idx, src 4: blk.27.ffn_gpu_neu_mask, src 5: blk.27.ffn_dfr_score, 
-
- SPLIT 57: backend: 1 CPU # 2 inputs
+ SPLIT 46: backend: 1 CPU # 2 inputs
   input 0: ffn_norm-26 (CUDA0)
   input 1: pred_out-26 (CUDA0)
 node 0 (MUL_MAT_SPARSE): ffn_up_sparse_cpu-26 | src 0: blk.26.ffn_up.weight, src 1: CPU#ffn_norm-26#0, src 2: CPU#pred_out-26#0, src 3: blk.26.ffn_gpu_neu_mask, 
 node 1 (MUL_MAT_SPARSE): ffn_gate_sparse_cpu-26 | src 0: blk.26.ffn_gate.weight, src 1: CPU#ffn_norm-26#0, src 2: CPU#pred_out-26#0, src 3: blk.26.ffn_gpu_neu_mask, 
 
- SPLIT 58: backend: 0 CUDA0 # 2 inputs
+ SPLIT 47: backend: 0 CUDA0 # 2 inputs
   input 0: ffn_gate_sparse_cpu-26 (  CPU)
   input 1: ffn_up_sparse_cpu-26 (  CPU)
-node 0 (ADD): ffn_gate_sparse_merged-26 | src 0: ffn_gate_sparse_gpu-26, src 1: CUDA0#ffn_gate_sparse_cpu-26#0, 
-node 1 (UNARY): ffn_gate_act-26 | src 0: ffn_gate_sparse_merged-26, 
-node 2 (ADD): ffn_up_sparse_merged-26 | src 0: ffn_up_sparse_gpu-26, src 1: CUDA0#ffn_up_sparse_cpu-26#0, 
-node 3 (MUL): ffn_gate_par-26 | src 0: ffn_gate_act-26, src 1: ffn_up_sparse_merged-26, 
-node 4 (AXPY_SPARSE): ffn_down_sparse_gpu-26 | src 0: blk.26.ffn_gpu_down_t.weight, src 1: ffn_gate_par-26, src 2: pred_out-26, src 3: blk.26.ffn_gpu_neu_idx, 
+node 0 (RELOAD_PLAN): ffn_reload_plan-27 | src 0: pred_out-27, 
+node 1 (RELOAD_EXEC): ffn_gate_reload-27 | src 0: blk.27.ffn_gpu_gate.weight, src 1: blk.27.ffn_gate.weight, src 2: ffn_reload_plan-27, 
+node 2 (RELOAD_EXEC): ffn_up_reload-27 | src 0: blk.27.ffn_gpu_up.weight, src 1: blk.27.ffn_up.weight, src 2: ffn_reload_plan-27, 
+node 3 (RELOAD_EXEC): ffn_down_reload-27 | src 0: blk.27.ffn_gpu_down_t.weight, src 1: blk.27.ffn_down_t.weight, src 2: ffn_reload_plan-27, 
+node 4 (ADD): ffn_gate_sparse_merged-26 | src 0: ffn_gate_sparse_gpu-26, src 1: CUDA0#ffn_gate_sparse_cpu-26#0, 
+node 5 (UNARY): ffn_gate_act-26 | src 0: ffn_gate_sparse_merged-26, 
+node 6 (ADD): ffn_up_sparse_merged-26 | src 0: ffn_up_sparse_gpu-26, src 1: CUDA0#ffn_up_sparse_cpu-26#0, 
+node 7 (MUL): ffn_gate_par-26 | src 0: ffn_gate_act-26, src 1: ffn_up_sparse_merged-26, 
+node 8 (AXPY_SPARSE): ffn_down_sparse_gpu-26 | src 0: blk.26.ffn_gpu_down_t.weight, src 1: ffn_gate_par-26, src 2: pred_out-26, src 3: blk.26.ffn_gpu_neu_idx, 
 
- SPLIT 59: backend: 1 CPU # 1 inputs
+ SPLIT 48: backend: 1 CPU # 1 inputs
   input 0: ffn_gate_par-26 (CUDA0)
 node 0 (AXPY_SPARSE): ffn_down_sparse_cpu-26 | src 0: blk.26.ffn_down_t.weight, src 1: CPU#ffn_gate_par-26#0, src 2: CPU#pred_out-26#0, src 3: blk.26.ffn_gpu_neu_mask, 
 
- SPLIT 60: backend: 0 CUDA0 # 1 inputs
+ SPLIT 49: backend: 0 CUDA0 # 1 inputs
   input 0: ffn_down_sparse_cpu-26 (  CPU)
 node 0 (ADD): ffn_down_sparse_merged-26 | src 0: CUDA0#ffn_down_sparse_cpu-26#0, src 1: ffn_down_sparse_gpu-26, 
 node 1 (ADD): l_out-26 | src 0: ffn_down_sparse_merged-26, src 1: ffn_inp-26, 
@@ -1464,10 +1447,10 @@ node 19 (PERMUTE): cache_v_l27 (view) (permuted) | src 0: cache_v_l27 (view),
 node 20 (VIEW): cache_k_l27 (view) | src 0: cache_k_l27, 
 node 21 (PERMUTE): cache_k_l27 (view) (permuted) | src 0: cache_k_l27 (view), 
 node 22 (PERMUTE): Qcur-27 (permuted) | src 0: Qcur-27, 
-node 23 (MUL_MAT): node_1273 | src 0: cache_k_l27 (view) (permuted), src 1: Qcur-27 (permuted), 
-node 24 (SOFT_MAX): node_1274 | src 0: node_1273, src 1: leaf_9, 
-node 25 (MUL_MAT): node_1275 | src 0: cache_v_l27 (view) (permuted), src 1: node_1274, 
-node 26 (PERMUTE):  (permuted) | src 0: node_1275, 
+node 23 (MUL_MAT): node_1278 | src 0: cache_k_l27 (view) (permuted), src 1: Qcur-27 (permuted), 
+node 24 (SOFT_MAX): node_1279 | src 0: node_1278, src 1: leaf_9, 
+node 25 (MUL_MAT): node_1280 | src 0: cache_v_l27 (view) (permuted), src 1: node_1279, 
+node 26 (PERMUTE):  (permuted) | src 0: node_1280, 
 node 27 (CONT): kqv_out-27 | src 0:  (permuted), 
 node 28 (MUL_MAT): attn_out-27 | src 0: blk.27.attn_output.weight, src 1: kqv_out-27, 
 node 29 (ADD): ffn_inp-27 | src 0: attn_out-27, src 1: l_out-26, 
@@ -1482,31 +1465,30 @@ node 37 (UNARY): pred_out-28 | src 0: pred_down_b-28,
 node 38 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-27 | src 0: blk.27.ffn_gpu_up.weight, src 1: ffn_norm-27, src 2: pred_out-27, src 3: blk.27.ffn_gpu_neu_idx, 
 node 39 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-27 | src 0: blk.27.ffn_gpu_gate.weight, src 1: ffn_norm-27, src 2: pred_out-27, src 3: blk.27.ffn_gpu_neu_idx, 
 
- SPLIT 61: backend: 0 CUDA0 # 0 inputs
-node 0 (RELOAD): ffn_gate_reload-28 | src 0: blk.28.ffn_gpu_gate.weight, src 1: blk.28.ffn_gate.weight, src 2: pred_out-28, src 3: blk.28.ffn_gpu_neu_idx, src 4: blk.28.ffn_gpu_neu_mask, src 5: blk.28.ffn_dfr_score, 
-node 1 (RELOAD): ffn_up_reload-28 | src 0: blk.28.ffn_gpu_up.weight, src 1: blk.28.ffn_up.weight, src 2: pred_out-28, src 3: blk.28.ffn_gpu_neu_idx, src 4: blk.28.ffn_gpu_neu_mask, src 5: blk.28.ffn_dfr_score, 
-node 2 (RELOAD): ffn_down_reload-28 | src 0: blk.28.ffn_gpu_down_t.weight, src 1: blk.28.ffn_down_t.weight, src 2: pred_out-28, src 3: blk.28.ffn_gpu_neu_idx, src 4: blk.28.ffn_gpu_neu_mask, src 5: blk.28.ffn_dfr_score, 
-
- SPLIT 62: backend: 1 CPU # 2 inputs
+ SPLIT 50: backend: 1 CPU # 2 inputs
   input 0: ffn_norm-27 (CUDA0)
   input 1: pred_out-27 (CUDA0)
 node 0 (MUL_MAT_SPARSE): ffn_up_sparse_cpu-27 | src 0: blk.27.ffn_up.weight, src 1: CPU#ffn_norm-27#0, src 2: CPU#pred_out-27#0, src 3: blk.27.ffn_gpu_neu_mask, 
 node 1 (MUL_MAT_SPARSE): ffn_gate_sparse_cpu-27 | src 0: blk.27.ffn_gate.weight, src 1: CPU#ffn_norm-27#0, src 2: CPU#pred_out-27#0, src 3: blk.27.ffn_gpu_neu_mask, 
 
- SPLIT 63: backend: 0 CUDA0 # 2 inputs
+ SPLIT 51: backend: 0 CUDA0 # 2 inputs
   input 0: ffn_gate_sparse_cpu-27 (  CPU)
   input 1: ffn_up_sparse_cpu-27 (  CPU)
-node 0 (ADD): ffn_gate_sparse_merged-27 | src 0: ffn_gate_sparse_gpu-27, src 1: CUDA0#ffn_gate_sparse_cpu-27#0, 
-node 1 (UNARY): ffn_gate_act-27 | src 0: ffn_gate_sparse_merged-27, 
-node 2 (ADD): ffn_up_sparse_merged-27 | src 0: ffn_up_sparse_gpu-27, src 1: CUDA0#ffn_up_sparse_cpu-27#0, 
-node 3 (MUL): ffn_gate_par-27 | src 0: ffn_gate_act-27, src 1: ffn_up_sparse_merged-27, 
-node 4 (AXPY_SPARSE): ffn_down_sparse_gpu-27 | src 0: blk.27.ffn_gpu_down_t.weight, src 1: ffn_gate_par-27, src 2: pred_out-27, src 3: blk.27.ffn_gpu_neu_idx, 
+node 0 (RELOAD_PLAN): ffn_reload_plan-28 | src 0: pred_out-28, 
+node 1 (RELOAD_EXEC): ffn_gate_reload-28 | src 0: blk.28.ffn_gpu_gate.weight, src 1: blk.28.ffn_gate.weight, src 2: ffn_reload_plan-28, 
+node 2 (RELOAD_EXEC): ffn_up_reload-28 | src 0: blk.28.ffn_gpu_up.weight, src 1: blk.28.ffn_up.weight, src 2: ffn_reload_plan-28, 
+node 3 (RELOAD_EXEC): ffn_down_reload-28 | src 0: blk.28.ffn_gpu_down_t.weight, src 1: blk.28.ffn_down_t.weight, src 2: ffn_reload_plan-28, 
+node 4 (ADD): ffn_gate_sparse_merged-27 | src 0: ffn_gate_sparse_gpu-27, src 1: CUDA0#ffn_gate_sparse_cpu-27#0, 
+node 5 (UNARY): ffn_gate_act-27 | src 0: ffn_gate_sparse_merged-27, 
+node 6 (ADD): ffn_up_sparse_merged-27 | src 0: ffn_up_sparse_gpu-27, src 1: CUDA0#ffn_up_sparse_cpu-27#0, 
+node 7 (MUL): ffn_gate_par-27 | src 0: ffn_gate_act-27, src 1: ffn_up_sparse_merged-27, 
+node 8 (AXPY_SPARSE): ffn_down_sparse_gpu-27 | src 0: blk.27.ffn_gpu_down_t.weight, src 1: ffn_gate_par-27, src 2: pred_out-27, src 3: blk.27.ffn_gpu_neu_idx, 
 
- SPLIT 64: backend: 1 CPU # 1 inputs
+ SPLIT 52: backend: 1 CPU # 1 inputs
   input 0: ffn_gate_par-27 (CUDA0)
 node 0 (AXPY_SPARSE): ffn_down_sparse_cpu-27 | src 0: blk.27.ffn_down_t.weight, src 1: CPU#ffn_gate_par-27#0, src 2: CPU#pred_out-27#0, src 3: blk.27.ffn_gpu_neu_mask, 
 
- SPLIT 65: backend: 0 CUDA0 # 1 inputs
+ SPLIT 53: backend: 0 CUDA0 # 1 inputs
   input 0: ffn_down_sparse_cpu-27 (  CPU)
 node 0 (ADD): ffn_down_sparse_merged-27 | src 0: CUDA0#ffn_down_sparse_cpu-27#0, src 1: ffn_down_sparse_gpu-27, 
 node 1 (ADD): l_out-27 | src 0: ffn_down_sparse_merged-27, src 1: ffn_inp-27, 
@@ -1531,10 +1513,10 @@ node 19 (PERMUTE): cache_v_l28 (view) (permuted) | src 0: cache_v_l28 (view),
 node 20 (VIEW): cache_k_l28 (view) | src 0: cache_k_l28, 
 node 21 (PERMUTE): cache_k_l28 (view) (permuted) | src 0: cache_k_l28 (view), 
 node 22 (PERMUTE): Qcur-28 (permuted) | src 0: Qcur-28, 
-node 23 (MUL_MAT): node_1324 | src 0: cache_k_l28 (view) (permuted), src 1: Qcur-28 (permuted), 
-node 24 (SOFT_MAX): node_1325 | src 0: node_1324, src 1: leaf_9, 
-node 25 (MUL_MAT): node_1326 | src 0: cache_v_l28 (view) (permuted), src 1: node_1325, 
-node 26 (PERMUTE):  (permuted) | src 0: node_1326, 
+node 23 (MUL_MAT): node_1330 | src 0: cache_k_l28 (view) (permuted), src 1: Qcur-28 (permuted), 
+node 24 (SOFT_MAX): node_1331 | src 0: node_1330, src 1: leaf_9, 
+node 25 (MUL_MAT): node_1332 | src 0: cache_v_l28 (view) (permuted), src 1: node_1331, 
+node 26 (PERMUTE):  (permuted) | src 0: node_1332, 
 node 27 (CONT): kqv_out-28 | src 0:  (permuted), 
 node 28 (MUL_MAT): attn_out-28 | src 0: blk.28.attn_output.weight, src 1: kqv_out-28, 
 node 29 (ADD): ffn_inp-28 | src 0: attn_out-28, src 1: l_out-27, 
@@ -1549,31 +1531,30 @@ node 37 (UNARY): pred_out-29 | src 0: pred_down_b-29,
 node 38 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-28 | src 0: blk.28.ffn_gpu_up.weight, src 1: ffn_norm-28, src 2: pred_out-28, src 3: blk.28.ffn_gpu_neu_idx, 
 node 39 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-28 | src 0: blk.28.ffn_gpu_gate.weight, src 1: ffn_norm-28, src 2: pred_out-28, src 3: blk.28.ffn_gpu_neu_idx, 
 
- SPLIT 66: backend: 0 CUDA0 # 0 inputs
-node 0 (RELOAD): ffn_gate_reload-29 | src 0: blk.29.ffn_gpu_gate.weight, src 1: blk.29.ffn_gate.weight, src 2: pred_out-29, src 3: blk.29.ffn_gpu_neu_idx, src 4: blk.29.ffn_gpu_neu_mask, src 5: blk.29.ffn_dfr_score, 
-node 1 (RELOAD): ffn_up_reload-29 | src 0: blk.29.ffn_gpu_up.weight, src 1: blk.29.ffn_up.weight, src 2: pred_out-29, src 3: blk.29.ffn_gpu_neu_idx, src 4: blk.29.ffn_gpu_neu_mask, src 5: blk.29.ffn_dfr_score, 
-node 2 (RELOAD): ffn_down_reload-29 | src 0: blk.29.ffn_gpu_down_t.weight, src 1: blk.29.ffn_down_t.weight, src 2: pred_out-29, src 3: blk.29.ffn_gpu_neu_idx, src 4: blk.29.ffn_gpu_neu_mask, src 5: blk.29.ffn_dfr_score, 
-
- SPLIT 67: backend: 1 CPU # 2 inputs
+ SPLIT 54: backend: 1 CPU # 2 inputs
   input 0: ffn_norm-28 (CUDA0)
   input 1: pred_out-28 (CUDA0)
 node 0 (MUL_MAT_SPARSE): ffn_up_sparse_cpu-28 | src 0: blk.28.ffn_up.weight, src 1: CPU#ffn_norm-28#0, src 2: CPU#pred_out-28#0, src 3: blk.28.ffn_gpu_neu_mask, 
 node 1 (MUL_MAT_SPARSE): ffn_gate_sparse_cpu-28 | src 0: blk.28.ffn_gate.weight, src 1: CPU#ffn_norm-28#0, src 2: CPU#pred_out-28#0, src 3: blk.28.ffn_gpu_neu_mask, 
 
- SPLIT 68: backend: 0 CUDA0 # 2 inputs
+ SPLIT 55: backend: 0 CUDA0 # 2 inputs
   input 0: ffn_gate_sparse_cpu-28 (  CPU)
   input 1: ffn_up_sparse_cpu-28 (  CPU)
-node 0 (ADD): ffn_gate_sparse_merged-28 | src 0: ffn_gate_sparse_gpu-28, src 1: CUDA0#ffn_gate_sparse_cpu-28#0, 
-node 1 (UNARY): ffn_gate_act-28 | src 0: ffn_gate_sparse_merged-28, 
-node 2 (ADD): ffn_up_sparse_merged-28 | src 0: ffn_up_sparse_gpu-28, src 1: CUDA0#ffn_up_sparse_cpu-28#0, 
-node 3 (MUL): ffn_gate_par-28 | src 0: ffn_gate_act-28, src 1: ffn_up_sparse_merged-28, 
-node 4 (AXPY_SPARSE): ffn_down_sparse_gpu-28 | src 0: blk.28.ffn_gpu_down_t.weight, src 1: ffn_gate_par-28, src 2: pred_out-28, src 3: blk.28.ffn_gpu_neu_idx, 
+node 0 (RELOAD_PLAN): ffn_reload_plan-29 | src 0: pred_out-29, 
+node 1 (RELOAD_EXEC): ffn_gate_reload-29 | src 0: blk.29.ffn_gpu_gate.weight, src 1: blk.29.ffn_gate.weight, src 2: ffn_reload_plan-29, 
+node 2 (RELOAD_EXEC): ffn_up_reload-29 | src 0: blk.29.ffn_gpu_up.weight, src 1: blk.29.ffn_up.weight, src 2: ffn_reload_plan-29, 
+node 3 (RELOAD_EXEC): ffn_down_reload-29 | src 0: blk.29.ffn_gpu_down_t.weight, src 1: blk.29.ffn_down_t.weight, src 2: ffn_reload_plan-29, 
+node 4 (ADD): ffn_gate_sparse_merged-28 | src 0: ffn_gate_sparse_gpu-28, src 1: CUDA0#ffn_gate_sparse_cpu-28#0, 
+node 5 (UNARY): ffn_gate_act-28 | src 0: ffn_gate_sparse_merged-28, 
+node 6 (ADD): ffn_up_sparse_merged-28 | src 0: ffn_up_sparse_gpu-28, src 1: CUDA0#ffn_up_sparse_cpu-28#0, 
+node 7 (MUL): ffn_gate_par-28 | src 0: ffn_gate_act-28, src 1: ffn_up_sparse_merged-28, 
+node 8 (AXPY_SPARSE): ffn_down_sparse_gpu-28 | src 0: blk.28.ffn_gpu_down_t.weight, src 1: ffn_gate_par-28, src 2: pred_out-28, src 3: blk.28.ffn_gpu_neu_idx, 
 
- SPLIT 69: backend: 1 CPU # 1 inputs
+ SPLIT 56: backend: 1 CPU # 1 inputs
   input 0: ffn_gate_par-28 (CUDA0)
 node 0 (AXPY_SPARSE): ffn_down_sparse_cpu-28 | src 0: blk.28.ffn_down_t.weight, src 1: CPU#ffn_gate_par-28#0, src 2: CPU#pred_out-28#0, src 3: blk.28.ffn_gpu_neu_mask, 
 
- SPLIT 70: backend: 0 CUDA0 # 1 inputs
+ SPLIT 57: backend: 0 CUDA0 # 1 inputs
   input 0: ffn_down_sparse_cpu-28 (  CPU)
 node 0 (ADD): ffn_down_sparse_merged-28 | src 0: CUDA0#ffn_down_sparse_cpu-28#0, src 1: ffn_down_sparse_gpu-28, 
 node 1 (ADD): l_out-28 | src 0: ffn_down_sparse_merged-28, src 1: ffn_inp-28, 
@@ -1598,10 +1579,10 @@ node 19 (PERMUTE): cache_v_l29 (view) (permuted) | src 0: cache_v_l29 (view),
 node 20 (VIEW): cache_k_l29 (view) | src 0: cache_k_l29, 
 node 21 (PERMUTE): cache_k_l29 (view) (permuted) | src 0: cache_k_l29 (view), 
 node 22 (PERMUTE): Qcur-29 (permuted) | src 0: Qcur-29, 
-node 23 (MUL_MAT): node_1375 | src 0: cache_k_l29 (view) (permuted), src 1: Qcur-29 (permuted), 
-node 24 (SOFT_MAX): node_1376 | src 0: node_1375, src 1: leaf_9, 
-node 25 (MUL_MAT): node_1377 | src 0: cache_v_l29 (view) (permuted), src 1: node_1376, 
-node 26 (PERMUTE):  (permuted) | src 0: node_1377, 
+node 23 (MUL_MAT): node_1382 | src 0: cache_k_l29 (view) (permuted), src 1: Qcur-29 (permuted), 
+node 24 (SOFT_MAX): node_1383 | src 0: node_1382, src 1: leaf_9, 
+node 25 (MUL_MAT): node_1384 | src 0: cache_v_l29 (view) (permuted), src 1: node_1383, 
+node 26 (PERMUTE):  (permuted) | src 0: node_1384, 
 node 27 (CONT): kqv_out-29 | src 0:  (permuted), 
 node 28 (MUL_MAT): attn_out-29 | src 0: blk.29.attn_output.weight, src 1: kqv_out-29, 
 node 29 (ADD): ffn_inp-29 | src 0: attn_out-29, src 1: l_out-28, 
@@ -1616,31 +1597,30 @@ node 37 (UNARY): pred_out-30 | src 0: pred_down_b-30,
 node 38 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-29 | src 0: blk.29.ffn_gpu_up.weight, src 1: ffn_norm-29, src 2: pred_out-29, src 3: blk.29.ffn_gpu_neu_idx, 
 node 39 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-29 | src 0: blk.29.ffn_gpu_gate.weight, src 1: ffn_norm-29, src 2: pred_out-29, src 3: blk.29.ffn_gpu_neu_idx, 
 
- SPLIT 71: backend: 0 CUDA0 # 0 inputs
-node 0 (RELOAD): ffn_gate_reload-30 | src 0: blk.30.ffn_gpu_gate.weight, src 1: blk.30.ffn_gate.weight, src 2: pred_out-30, src 3: blk.30.ffn_gpu_neu_idx, src 4: blk.30.ffn_gpu_neu_mask, src 5: blk.30.ffn_dfr_score, 
-node 1 (RELOAD): ffn_up_reload-30 | src 0: blk.30.ffn_gpu_up.weight, src 1: blk.30.ffn_up.weight, src 2: pred_out-30, src 3: blk.30.ffn_gpu_neu_idx, src 4: blk.30.ffn_gpu_neu_mask, src 5: blk.30.ffn_dfr_score, 
-node 2 (RELOAD): ffn_down_reload-30 | src 0: blk.30.ffn_gpu_down_t.weight, src 1: blk.30.ffn_down_t.weight, src 2: pred_out-30, src 3: blk.30.ffn_gpu_neu_idx, src 4: blk.30.ffn_gpu_neu_mask, src 5: blk.30.ffn_dfr_score, 
-
- SPLIT 72: backend: 1 CPU # 2 inputs
+ SPLIT 58: backend: 1 CPU # 2 inputs
   input 0: ffn_norm-29 (CUDA0)
   input 1: pred_out-29 (CUDA0)
 node 0 (MUL_MAT_SPARSE): ffn_up_sparse_cpu-29 | src 0: blk.29.ffn_up.weight, src 1: CPU#ffn_norm-29#0, src 2: CPU#pred_out-29#0, src 3: blk.29.ffn_gpu_neu_mask, 
 node 1 (MUL_MAT_SPARSE): ffn_gate_sparse_cpu-29 | src 0: blk.29.ffn_gate.weight, src 1: CPU#ffn_norm-29#0, src 2: CPU#pred_out-29#0, src 3: blk.29.ffn_gpu_neu_mask, 
 
- SPLIT 73: backend: 0 CUDA0 # 2 inputs
+ SPLIT 59: backend: 0 CUDA0 # 2 inputs
   input 0: ffn_gate_sparse_cpu-29 (  CPU)
   input 1: ffn_up_sparse_cpu-29 (  CPU)
-node 0 (ADD): ffn_gate_sparse_merged-29 | src 0: ffn_gate_sparse_gpu-29, src 1: CUDA0#ffn_gate_sparse_cpu-29#0, 
-node 1 (UNARY): ffn_gate_act-29 | src 0: ffn_gate_sparse_merged-29, 
-node 2 (ADD): ffn_up_sparse_merged-29 | src 0: ffn_up_sparse_gpu-29, src 1: CUDA0#ffn_up_sparse_cpu-29#0, 
-node 3 (MUL): ffn_gate_par-29 | src 0: ffn_gate_act-29, src 1: ffn_up_sparse_merged-29, 
-node 4 (AXPY_SPARSE): ffn_down_sparse_gpu-29 | src 0: blk.29.ffn_gpu_down_t.weight, src 1: ffn_gate_par-29, src 2: pred_out-29, src 3: blk.29.ffn_gpu_neu_idx, 
+node 0 (RELOAD_PLAN): ffn_reload_plan-30 | src 0: pred_out-30, 
+node 1 (RELOAD_EXEC): ffn_gate_reload-30 | src 0: blk.30.ffn_gpu_gate.weight, src 1: blk.30.ffn_gate.weight, src 2: ffn_reload_plan-30, 
+node 2 (RELOAD_EXEC): ffn_up_reload-30 | src 0: blk.30.ffn_gpu_up.weight, src 1: blk.30.ffn_up.weight, src 2: ffn_reload_plan-30, 
+node 3 (RELOAD_EXEC): ffn_down_reload-30 | src 0: blk.30.ffn_gpu_down_t.weight, src 1: blk.30.ffn_down_t.weight, src 2: ffn_reload_plan-30, 
+node 4 (ADD): ffn_gate_sparse_merged-29 | src 0: ffn_gate_sparse_gpu-29, src 1: CUDA0#ffn_gate_sparse_cpu-29#0, 
+node 5 (UNARY): ffn_gate_act-29 | src 0: ffn_gate_sparse_merged-29, 
+node 6 (ADD): ffn_up_sparse_merged-29 | src 0: ffn_up_sparse_gpu-29, src 1: CUDA0#ffn_up_sparse_cpu-29#0, 
+node 7 (MUL): ffn_gate_par-29 | src 0: ffn_gate_act-29, src 1: ffn_up_sparse_merged-29, 
+node 8 (AXPY_SPARSE): ffn_down_sparse_gpu-29 | src 0: blk.29.ffn_gpu_down_t.weight, src 1: ffn_gate_par-29, src 2: pred_out-29, src 3: blk.29.ffn_gpu_neu_idx, 
 
- SPLIT 74: backend: 1 CPU # 1 inputs
+ SPLIT 60: backend: 1 CPU # 1 inputs
   input 0: ffn_gate_par-29 (CUDA0)
 node 0 (AXPY_SPARSE): ffn_down_sparse_cpu-29 | src 0: blk.29.ffn_down_t.weight, src 1: CPU#ffn_gate_par-29#0, src 2: CPU#pred_out-29#0, src 3: blk.29.ffn_gpu_neu_mask, 
 
- SPLIT 75: backend: 0 CUDA0 # 1 inputs
+ SPLIT 61: backend: 0 CUDA0 # 1 inputs
   input 0: ffn_down_sparse_cpu-29 (  CPU)
 node 0 (ADD): ffn_down_sparse_merged-29 | src 0: CUDA0#ffn_down_sparse_cpu-29#0, src 1: ffn_down_sparse_gpu-29, 
 node 1 (ADD): l_out-29 | src 0: ffn_down_sparse_merged-29, src 1: ffn_inp-29, 
@@ -1665,10 +1645,10 @@ node 19 (PERMUTE): cache_v_l30 (view) (permuted) | src 0: cache_v_l30 (view),
 node 20 (VIEW): cache_k_l30 (view) | src 0: cache_k_l30, 
 node 21 (PERMUTE): cache_k_l30 (view) (permuted) | src 0: cache_k_l30 (view), 
 node 22 (PERMUTE): Qcur-30 (permuted) | src 0: Qcur-30, 
-node 23 (MUL_MAT): node_1426 | src 0: cache_k_l30 (view) (permuted), src 1: Qcur-30 (permuted), 
-node 24 (SOFT_MAX): node_1427 | src 0: node_1426, src 1: leaf_9, 
-node 25 (MUL_MAT): node_1428 | src 0: cache_v_l30 (view) (permuted), src 1: node_1427, 
-node 26 (PERMUTE):  (permuted) | src 0: node_1428, 
+node 23 (MUL_MAT): node_1434 | src 0: cache_k_l30 (view) (permuted), src 1: Qcur-30 (permuted), 
+node 24 (SOFT_MAX): node_1435 | src 0: node_1434, src 1: leaf_9, 
+node 25 (MUL_MAT): node_1436 | src 0: cache_v_l30 (view) (permuted), src 1: node_1435, 
+node 26 (PERMUTE):  (permuted) | src 0: node_1436, 
 node 27 (CONT): kqv_out-30 | src 0:  (permuted), 
 node 28 (MUL_MAT): attn_out-30 | src 0: blk.30.attn_output.weight, src 1: kqv_out-30, 
 node 29 (ADD): ffn_inp-30 | src 0: attn_out-30, src 1: l_out-29, 
@@ -1683,31 +1663,30 @@ node 37 (UNARY): pred_out-31 | src 0: pred_down_b-31,
 node 38 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-30 | src 0: blk.30.ffn_gpu_up.weight, src 1: ffn_norm-30, src 2: pred_out-30, src 3: blk.30.ffn_gpu_neu_idx, 
 node 39 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-30 | src 0: blk.30.ffn_gpu_gate.weight, src 1: ffn_norm-30, src 2: pred_out-30, src 3: blk.30.ffn_gpu_neu_idx, 
 
- SPLIT 76: backend: 0 CUDA0 # 0 inputs
-node 0 (RELOAD): ffn_gate_reload-31 | src 0: blk.31.ffn_gpu_gate.weight, src 1: blk.31.ffn_gate.weight, src 2: pred_out-31, src 3: blk.31.ffn_gpu_neu_idx, src 4: blk.31.ffn_gpu_neu_mask, src 5: blk.31.ffn_dfr_score, 
-node 1 (RELOAD): ffn_up_reload-31 | src 0: blk.31.ffn_gpu_up.weight, src 1: blk.31.ffn_up.weight, src 2: pred_out-31, src 3: blk.31.ffn_gpu_neu_idx, src 4: blk.31.ffn_gpu_neu_mask, src 5: blk.31.ffn_dfr_score, 
-node 2 (RELOAD): ffn_down_reload-31 | src 0: blk.31.ffn_gpu_down_t.weight, src 1: blk.31.ffn_down_t.weight, src 2: pred_out-31, src 3: blk.31.ffn_gpu_neu_idx, src 4: blk.31.ffn_gpu_neu_mask, src 5: blk.31.ffn_dfr_score, 
-
- SPLIT 77: backend: 1 CPU # 2 inputs
+ SPLIT 62: backend: 1 CPU # 2 inputs
   input 0: ffn_norm-30 (CUDA0)
   input 1: pred_out-30 (CUDA0)
 node 0 (MUL_MAT_SPARSE): ffn_up_sparse_cpu-30 | src 0: blk.30.ffn_up.weight, src 1: CPU#ffn_norm-30#0, src 2: CPU#pred_out-30#0, src 3: blk.30.ffn_gpu_neu_mask, 
 node 1 (MUL_MAT_SPARSE): ffn_gate_sparse_cpu-30 | src 0: blk.30.ffn_gate.weight, src 1: CPU#ffn_norm-30#0, src 2: CPU#pred_out-30#0, src 3: blk.30.ffn_gpu_neu_mask, 
 
- SPLIT 78: backend: 0 CUDA0 # 2 inputs
+ SPLIT 63: backend: 0 CUDA0 # 2 inputs
   input 0: ffn_gate_sparse_cpu-30 (  CPU)
   input 1: ffn_up_sparse_cpu-30 (  CPU)
-node 0 (ADD): ffn_gate_sparse_merged-30 | src 0: ffn_gate_sparse_gpu-30, src 1: CUDA0#ffn_gate_sparse_cpu-30#0, 
-node 1 (UNARY): ffn_gate_act-30 | src 0: ffn_gate_sparse_merged-30, 
-node 2 (ADD): ffn_up_sparse_merged-30 | src 0: ffn_up_sparse_gpu-30, src 1: CUDA0#ffn_up_sparse_cpu-30#0, 
-node 3 (MUL): ffn_gate_par-30 | src 0: ffn_gate_act-30, src 1: ffn_up_sparse_merged-30, 
-node 4 (AXPY_SPARSE): ffn_down_sparse_gpu-30 | src 0: blk.30.ffn_gpu_down_t.weight, src 1: ffn_gate_par-30, src 2: pred_out-30, src 3: blk.30.ffn_gpu_neu_idx, 
+node 0 (RELOAD_PLAN): ffn_reload_plan-31 | src 0: pred_out-31, 
+node 1 (RELOAD_EXEC): ffn_gate_reload-31 | src 0: blk.31.ffn_gpu_gate.weight, src 1: blk.31.ffn_gate.weight, src 2: ffn_reload_plan-31, 
+node 2 (RELOAD_EXEC): ffn_up_reload-31 | src 0: blk.31.ffn_gpu_up.weight, src 1: blk.31.ffn_up.weight, src 2: ffn_reload_plan-31, 
+node 3 (RELOAD_EXEC): ffn_down_reload-31 | src 0: blk.31.ffn_gpu_down_t.weight, src 1: blk.31.ffn_down_t.weight, src 2: ffn_reload_plan-31, 
+node 4 (ADD): ffn_gate_sparse_merged-30 | src 0: ffn_gate_sparse_gpu-30, src 1: CUDA0#ffn_gate_sparse_cpu-30#0, 
+node 5 (UNARY): ffn_gate_act-30 | src 0: ffn_gate_sparse_merged-30, 
+node 6 (ADD): ffn_up_sparse_merged-30 | src 0: ffn_up_sparse_gpu-30, src 1: CUDA0#ffn_up_sparse_cpu-30#0, 
+node 7 (MUL): ffn_gate_par-30 | src 0: ffn_gate_act-30, src 1: ffn_up_sparse_merged-30, 
+node 8 (AXPY_SPARSE): ffn_down_sparse_gpu-30 | src 0: blk.30.ffn_gpu_down_t.weight, src 1: ffn_gate_par-30, src 2: pred_out-30, src 3: blk.30.ffn_gpu_neu_idx, 
 
- SPLIT 79: backend: 1 CPU # 1 inputs
+ SPLIT 64: backend: 1 CPU # 1 inputs
   input 0: ffn_gate_par-30 (CUDA0)
 node 0 (AXPY_SPARSE): ffn_down_sparse_cpu-30 | src 0: blk.30.ffn_down_t.weight, src 1: CPU#ffn_gate_par-30#0, src 2: CPU#pred_out-30#0, src 3: blk.30.ffn_gpu_neu_mask, 
 
- SPLIT 80: backend: 0 CUDA0 # 1 inputs
+ SPLIT 65: backend: 0 CUDA0 # 1 inputs
   input 0: ffn_down_sparse_cpu-30 (  CPU)
 node 0 (ADD): ffn_down_sparse_merged-30 | src 0: CUDA0#ffn_down_sparse_cpu-30#0, src 1: ffn_down_sparse_gpu-30, 
 node 1 (ADD): l_out-30 | src 0: ffn_down_sparse_merged-30, src 1: ffn_inp-30, 
@@ -1732,27 +1711,27 @@ node 19 (PERMUTE): cache_v_l31 (view) (permuted) | src 0: cache_v_l31 (view),
 node 20 (VIEW): cache_k_l31 (view) | src 0: cache_k_l31, 
 node 21 (PERMUTE): cache_k_l31 (view) (permuted) | src 0: cache_k_l31 (view), 
 node 22 (PERMUTE): Qcur-31 (permuted) | src 0: Qcur-31, 
-node 23 (MUL_MAT): node_1477 | src 0: cache_k_l31 (view) (permuted), src 1: Qcur-31 (permuted), 
-node 24 (SOFT_MAX): node_1478 | src 0: node_1477, src 1: leaf_9, 
-node 25 (MUL_MAT): node_1479 | src 0: cache_v_l31 (view) (permuted), src 1: node_1478, 
-node 26 (PERMUTE):  (permuted) | src 0: node_1479, 
+node 23 (MUL_MAT): node_1486 | src 0: cache_k_l31 (view) (permuted), src 1: Qcur-31 (permuted), 
+node 24 (SOFT_MAX): node_1487 | src 0: node_1486, src 1: leaf_9, 
+node 25 (MUL_MAT): node_1488 | src 0: cache_v_l31 (view) (permuted), src 1: node_1487, 
+node 26 (PERMUTE):  (permuted) | src 0: node_1488, 
 node 27 (CONT): kqv_out-31 | src 0:  (permuted), 
 node 28 (MUL_MAT): attn_out-31 | src 0: blk.31.attn_output.weight, src 1: kqv_out-31, 
-node 29 (GET_ROWS): node_1483 | src 0: attn_out-31, src 1: leaf_585, 
-node 30 (GET_ROWS): node_1484 | src 0: l_out-30, src 1: leaf_585, 
-node 31 (ADD): ffn_inp-31 | src 0: node_1483, src 1: node_1484, 
+node 29 (GET_ROWS): node_1492 | src 0: attn_out-31, src 1: leaf_566, 
+node 30 (GET_ROWS): node_1493 | src 0: l_out-30, src 1: leaf_566, 
+node 31 (ADD): ffn_inp-31 | src 0: node_1492, src 1: node_1493, 
 node 32 (RMS_NORM): norm-31 | src 0: ffn_inp-31, 
 node 33 (MUL): ffn_norm-31 | src 0: norm-31, src 1: blk.31.ffn_norm.weight, 
 node 34 (MUL_MAT_SPARSE): ffn_up_sparse_gpu-31 | src 0: blk.31.ffn_gpu_up.weight, src 1: ffn_norm-31, src 2: pred_out-31, src 3: blk.31.ffn_gpu_neu_idx, 
 node 35 (MUL_MAT_SPARSE): ffn_gate_sparse_gpu-31 | src 0: blk.31.ffn_gpu_gate.weight, src 1: ffn_norm-31, src 2: pred_out-31, src 3: blk.31.ffn_gpu_neu_idx, 
 
- SPLIT 81: backend: 1 CPU # 2 inputs
+ SPLIT 66: backend: 1 CPU # 2 inputs
   input 0: ffn_norm-31 (CUDA0)
   input 1: pred_out-31 (CUDA0)
 node 0 (MUL_MAT_SPARSE): ffn_up_sparse_cpu-31 | src 0: blk.31.ffn_up.weight, src 1: CPU#ffn_norm-31#0, src 2: CPU#pred_out-31#0, src 3: blk.31.ffn_gpu_neu_mask, 
 node 1 (MUL_MAT_SPARSE): ffn_gate_sparse_cpu-31 | src 0: blk.31.ffn_gate.weight, src 1: CPU#ffn_norm-31#0, src 2: CPU#pred_out-31#0, src 3: blk.31.ffn_gpu_neu_mask, 
 
- SPLIT 82: backend: 0 CUDA0 # 2 inputs
+ SPLIT 67: backend: 0 CUDA0 # 2 inputs
   input 0: ffn_gate_sparse_cpu-31 (  CPU)
   input 1: ffn_up_sparse_cpu-31 (  CPU)
 node 0 (ADD): ffn_gate_sparse_merged-31 | src 0: ffn_gate_sparse_gpu-31, src 1: CUDA0#ffn_gate_sparse_cpu-31#0, 
@@ -1761,11 +1740,11 @@ node 2 (ADD): ffn_up_sparse_merged-31 | src 0: ffn_up_sparse_gpu-31, src 1: CUDA
 node 3 (MUL): ffn_gate_par-31 | src 0: ffn_gate_act-31, src 1: ffn_up_sparse_merged-31, 
 node 4 (AXPY_SPARSE): ffn_down_sparse_gpu-31 | src 0: blk.31.ffn_gpu_down_t.weight, src 1: ffn_gate_par-31, src 2: pred_out-31, src 3: blk.31.ffn_gpu_neu_idx, 
 
- SPLIT 83: backend: 1 CPU # 1 inputs
+ SPLIT 68: backend: 1 CPU # 1 inputs
   input 0: ffn_gate_par-31 (CUDA0)
 node 0 (AXPY_SPARSE): ffn_down_sparse_cpu-31 | src 0: blk.31.ffn_down_t.weight, src 1: CPU#ffn_gate_par-31#0, src 2: CPU#pred_out-31#0, src 3: blk.31.ffn_gpu_neu_mask, 
 
- SPLIT 84: backend: 0 CUDA0 # 1 inputs
+ SPLIT 69: backend: 0 CUDA0 # 1 inputs
   input 0: ffn_down_sparse_cpu-31 (  CPU)
 node 0 (ADD): ffn_down_sparse_merged-31 | src 0: CUDA0#ffn_down_sparse_cpu-31#0, src 1: ffn_down_sparse_gpu-31, 
 node 1 (ADD): l_out-31 | src 0: ffn_down_sparse_merged-31, src 1: ffn_inp-31, 

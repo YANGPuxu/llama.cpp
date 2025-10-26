@@ -808,17 +808,23 @@ ggml_tensor * llm_graph_context::build_predictor(
 }
 
 ggml_tensor * llm_graph_context::build_reload(ggml_context * ctx, ggml_cgraph * gf, struct sparkInfer_layer_cache * spif_cache, ggml_tensor * sparse_idx, const int il) const{
+    // 1. plan reload
+    ggml_tensor * plan_done = spif_cache->build_reload_plan(ctx, sparse_idx, il);
+    ggml_backend_sched_set_tensor_backend(sched, plan_done, backend_gpu);
+    cb(plan_done, "ffn_reload_plan", il);
+    
+    // 2, plan execution
     ggml_tensor * done_reload_gate;
     ggml_tensor * done_reload_up;
     ggml_tensor * done_reload_down;
 
     if(spif_cache->gpu_ffn_gate_cache){
-        done_reload_gate = spif_cache->build_reload_impl(ctx, sparse_idx, "gate", il);
+        done_reload_gate = spif_cache->build_reload_exec(ctx, plan_done, "gate", il);
         cb(done_reload_gate, "ffn_gate_reload", il);
     }
-    done_reload_up   = spif_cache->build_reload_impl(ctx, sparse_idx, "up", il);
+    done_reload_up   = spif_cache->build_reload_exec(ctx, plan_done, "up", il);
     cb(done_reload_up, "ffn_up_reload", il);
-    done_reload_down = spif_cache->build_reload_impl(ctx, sparse_idx, "down", il);
+    done_reload_down = spif_cache->build_reload_exec(ctx, plan_done, "down", il);
     cb(done_reload_down, "ffn_down_reload", il);
 
     // GTODO: do we need a node to combine these three tensors? or just build_forward_expand them one by one?
@@ -831,14 +837,6 @@ ggml_tensor * llm_graph_context::build_reload(ggml_context * ctx, ggml_cgraph * 
     ggml_build_forward_expand(gf, done_reload_down);
     ggml_backend_sched_set_tensor_backend(sched, done_reload_down, backend_gpu);
     return nullptr;
-
-    // ggml_tensor * result = ggml_new_tensor_2d(ctx, spif_cache->gpu_ffn_up_cache->type, spif_cache->gpu_ffn_up_cache->ne[0], spif_cache->gpu_ffn_up_cache->ne[1]);
-    
-    // result->op = GGML_OP_VIEW;
-    // result->src[0] = done_reload_up;
-    // result->src[1] = done_reload_down;
-    // result->src[2] = done_reload_gate ? done_reload_gate : ggml_new_tensor_1d(ctx, GGML_TYPE_I32, 0); // avoid null pointer
-    // return result;
 }
 
 // build sparse ffn graph new 
@@ -932,9 +930,6 @@ ggml_tensor * llm_graph_context::build_sparse_ffn(
                 ggml_build_forward_expand(gf, cur_gate);
             }
 
-            // build reload
-            if(il != n_layer - 1 && !next_full_gpu) ggml_tensor * done_reload = build_reload(ctx0, gf, spif_layer_next, R_next->sparse_idx, il+1);
-
             // cpu_up_proj
             if (!full_gpu){
                 ggml_tensor * cpu_up_proj   = ggml_mul_mat_sparse(ctx0, up, input, sparse_idx, gpu_neu_mask);
@@ -947,6 +942,9 @@ ggml_tensor * llm_graph_context::build_sparse_ffn(
                     cb(cpu_gate_proj, "ffn_gate_sparse_cpu", il);
                     ggml_build_forward_expand(gf, cpu_gate_proj);
                 }
+
+            // build reload
+            if(il != n_layer - 1 && !next_full_gpu) ggml_tensor * done_reload = build_reload(ctx0, gf, spif_layer_next, R_next->sparse_idx, il+1);
 
             // merge
                 cur_up = ggml_add(ctx0, cur_up, cpu_up_proj);

@@ -2623,31 +2623,6 @@ static void ggml_compute_forward_axpy_sparse_new(
 #endif
 }
 
-//----------------------reload weights op----------------------------
-static void reload_weights(
-        const struct ggml_compute_params * params,
-              struct ggml_tensor * tensor) 
-{
-    GGML_ABORT("code should not reach here, reload_weights is now moved to ggml-cuda.cu for CUDA backend");
-    //       struct ggml_tensor * gpu_weights     = tensor->src[0];
-    //       struct ggml_tensor * cpu_weights     = tensor->src[1];
-    // const struct ggml_tensor * sparse_idx      = tensor->src[2];
-    //       struct ggml_tensor * gpu_neu_idx     = tensor->src[3];
-    //       struct ggml_tensor * gpu_neu_mask    = tensor->src[4];
-    //       struct ggml_tensor * DFR_score       = tensor->src[5];
-    //       // and other mappings
-
-    // // check weights is on GPU, while others are on CPU or CUDA_Host(in cpu pinned memory)
-    // GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_weights->buffer), "CUDA0") != NULL);
-    // GGML_ASSERT(strstr(ggml_backend_buffer_name(cpu_weights->buffer), "CPU") != NULL);
-    // GGML_ASSERT(strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CPU") || strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CUDA_Host"));
-    // GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_neu_idx->buffer), "CPU") || strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CUDA_Host"));
-    // GGML_ASSERT(strstr(ggml_backend_buffer_name(gpu_neu_mask->buffer), "CPU") || strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CUDA_Host"));
-    // GGML_ASSERT(strstr(ggml_backend_buffer_name(DFR_score->buffer), "CPU") || strstr(ggml_backend_buffer_name(sparse_idx->buffer), "CUDA_Host"));
-
-    // GTODO[reload]: here is the real implementation of reloading weights, updating DFR_score and gpu_neu_idx
-
-}
 
 /////////////////////////////////
 
@@ -2787,10 +2762,6 @@ static void ggml_compute_forward(struct ggml_compute_params * params, struct ggm
                 // int t_end =ggml_time_us();
                 // printf("[DEBUG_CPU]     axpy: tensor->name=%s, time= %lld us\n", tensor->name, t_end-t_start); 
             }break;
-        case GGML_OP_RELOAD_WEIGHTS:
-            {
-                reload_weights(params, tensor);
-            } break;
         case GGML_OP_MUL_MAT_ID:
             {
                 ggml_compute_forward_mul_mat_id(params, tensor);
@@ -3200,10 +3171,6 @@ static int ggml_get_n_tasks(struct ggml_tensor * node, int n_threads) {
                 //     GGML_ASSERT(n_threads > 1 && "n_threads must be > 1 to enable hybrid CPU/GPU computation");
                 // }
 #endif
-            } break;
-        case GGML_OP_RELOAD_WEIGHTS:
-            {
-                n_tasks = 1;  // GTODO[reload]:  how many threads do we need for reloaidng?
             } break;
         case GGML_OP_GET_ROWS:
             {
@@ -3699,11 +3666,6 @@ struct ggml_cplan ggml_graph_plan(
                         if (node->src[1]->type != vec_dot_type) {
                             cur = ggml_row_size(vec_dot_type, ggml_nelements(node->src[1]));
                         }
-                    }break;
-                case GGML_OP_RELOAD_WEIGHTS:
-                    {
-                        // GTODO[reload]: how many memory do we need for reloading??
-                        cur = 0;
                     }break;
                 case GGML_OP_MUL_MAT_ID:
                     {

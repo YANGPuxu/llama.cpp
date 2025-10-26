@@ -18,7 +18,8 @@ extern "C" {
 
 typedef struct ggml_spif_context ggml_spif_context; 
   
-reload_plan_result * ggml_spif_reload_plan(ggml_spif_context * ctx, ggml_tensor * tensor);  
+bool ggml_spif_reload_plan(ggml_spif_context * ctx, ggml_tensor * tensor);  
+bool ggml_spif_reload_exec(ggml_spif_context * ctx, ggml_tensor * tensor);  
   
 #ifdef __cplusplus  
 }  

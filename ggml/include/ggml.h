@@ -468,7 +468,8 @@ extern "C" {
         GGML_OP_AXPY_SPARSE,
 
         // sparkinfer reload
-        GGML_OP_RELOAD_WEIGHTS,
+        GGML_OP_RELOAD_PLAN,
+        GGML_OP_RELOAD_EXEC,
 
         GGML_OP_OUT_PROD,
 

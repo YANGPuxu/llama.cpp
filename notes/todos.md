@@ -34,7 +34,7 @@
 将 `build_reload` 作为节点插入计算图中，并强制后端为 CPU。设置 `src` 的内容如下：
 ```cpp
     // llama-sparkinfer.cpp line 209
-    result->op = GGML_OP_RELOAD_WEIGHTS;
+    result->op = GGML_OP_RELOAD_EXEC;
     result->src[0] = gpu_ffn;
     result->src[1] = cpu_ffn;
     result->src[2] = sparse_idx;

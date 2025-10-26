@@ -180,47 +180,6 @@ bool sparkInfer_layer_cache:: init(int layer_idx, llama_model& model, llama_laye
     return true;
 }
 
-ggml_tensor * sparkInfer_layer_cache:: build_reload_impl(ggml_context * ctx, ggml_tensor * sparse_idx, const char * name, const int il){
-    GGML_ASSERT(ffn_gpu_neu_idx && "ffn_gpu_neu_idx is required for reloading");
-    GGML_ASSERT(sparse_idx && "sparse_idx is required for reloading");
-    GGML_ASSERT(dfr_score && "dfr_score is required for reloading");
-
-    std::string full_name = "ffn_" + std::string(name) + "_sparse_reload";
-
-    ggml_tensor * gpu_ffn = nullptr;
-    ggml_tensor * cpu_ffn = nullptr;
-
-    if (std::string(name) == "gate") {
-        gpu_ffn = gpu_ffn_gate_cache;
-        cpu_ffn = cpu_ffn_gate;
-    } else if (std::string(name) == "up") {
-        gpu_ffn = gpu_ffn_up_cache;
-        cpu_ffn = cpu_ffn_up;
-    } else if (std::string(name) == "down") {
-        gpu_ffn = gpu_ffn_down_t_cache;
-        cpu_ffn = cpu_ffn_down_t;
-    } else {
-        GGML_ASSERT(false && "unsupported name for reload");
-    }
-
-    // ggml_tensor * result = ggml_view_2d(ctx, gpu_ffn_up_cache, gpu_ffn_up_cache->ne[0], gpu_ffn_up_cache->ne[1], 0, 0);
-    ggml_tensor * result = ggml_new_tensor_2d(ctx, gpu_ffn_up_cache->type, gpu_ffn_up_cache->ne[0], gpu_ffn_up_cache->ne[1]);
-
-    // added reload params
-    memcpy(&result->op_params[0], this, sizeof(sparkInfer_layer_cache*)); // Pass the pointer to SparkInfer_layer_cache
-    
-    result->op = GGML_OP_RELOAD_WEIGHTS;
-    result->src[0] = gpu_ffn;
-    result->src[1] = cpu_ffn;
-    result->src[2] = sparse_idx;
-    result->src[3] = ffn_gpu_neu_idx;
-    result->src[4] = ffn_gpu_neu_mask;
-    result->src[5] = dfr_score;
-    // and other mappings
-
-    return result;
-}
-
 int64_t sparkInfer_layer_cache:: ensure_neuron_on_gpu(int64_t neuron_idx) {
     auto it = neuron_to_slot_map.find(neuron_idx);
     if (it != neuron_to_slot_map.end()) {
@@ -728,26 +687,86 @@ size_t sparkinfer_load_gpu_split_and_offload_weight(llama_model_loader & ml, lla
     return total_offloaded_bytes;
 }
 
+// ----------Spakinfer reload (graph building)----------- //
+ggml_tensor * sparkInfer_layer_cache:: build_reload_plan(ggml_context * ctx, ggml_tensor * sparse_idx, const int il){
+    GGML_ASSERT(sparse_idx && "sparse_idx is required for reloading");
+
+    // a demo tensor for graph biulding
+    ggml_tensor * result = ggml_new_tensor_1d(ctx, GGML_TYPE_I32, 1);
+    
+    // added reload params
+    memcpy(&result->op_params[0], this, sizeof(sparkInfer_layer_cache*)); // Pass the pointer to SparkInfer_layer_cache
+
+    result->op = GGML_OP_RELOAD_PLAN;
+    result->src[0] = sparse_idx;
+    return result;
+}
+
+ggml_tensor * sparkInfer_layer_cache:: build_reload_exec(ggml_context * ctx, ggml_tensor * plan_done, const char * name, const int il){
+    GGML_ASSERT(ffn_gpu_neu_idx && "ffn_gpu_neu_idx is required for reloading");
+    GGML_ASSERT(plan_done && "plan_done is required for reloading");
+
+    ggml_tensor * gpu_ffn = nullptr;
+    ggml_tensor * cpu_ffn = nullptr;
+
+    if (std::string(name) == "gate") {
+        gpu_ffn = gpu_ffn_gate_cache;
+        cpu_ffn = cpu_ffn_gate;
+    } else if (std::string(name) == "up") {
+        gpu_ffn = gpu_ffn_up_cache;
+        cpu_ffn = cpu_ffn_up;
+    } else if (std::string(name) == "down") {
+        gpu_ffn = gpu_ffn_down_t_cache;
+        cpu_ffn = cpu_ffn_down_t;
+    } else {
+        GGML_ASSERT(false && "unsupported name for reload");
+    }
+
+    // ggml_tensor * result = ggml_view_2d(ctx, gpu_ffn_up_cache, gpu_ffn_up_cache->ne[0], gpu_ffn_up_cache->ne[1], 0, 0);
+    ggml_tensor * result = ggml_new_tensor_1d(ctx, GGML_TYPE_I32, 1);
+
+    // added reload params
+    memcpy(&result->op_params[0], this, sizeof(sparkInfer_layer_cache*)); // Pass the pointer to SparkInfer_layer_cache
+    
+    result->op = GGML_OP_RELOAD_EXEC;
+    result->src[0] = gpu_ffn;
+    result->src[1] = cpu_ffn;
+    result->src[2] = plan_done; // just a dependency
+
+    return result;
+}
+// --------------------------------------------------------- //
+
+
+
+// ----------Spakinfer reload (real implmentation)----------- //
 // this is a C wrapper to call llama-sparkinfer function, used in ggml codebase for relaoding operation
 extern "C" {  
-    reload_plan_result * ggml_spif_reload_plan(ggml_spif_context* ctx, ggml_tensor * tensor) {  
+    bool ggml_spif_reload_plan(ggml_spif_context* ctx, ggml_tensor * tensor) {  
         sparkInfer_layer_cache * spif_cache = reinterpret_cast<sparkInfer_layer_cache*>(ctx);  
         return spif_cache->spif_reload_plan(tensor);  
+    }
+
+    bool ggml_spif_reload_exec(ggml_spif_context* ctx, ggml_tensor * tensor) {  
+        sparkInfer_layer_cache * spif_cache = reinterpret_cast<sparkInfer_layer_cache*>(ctx);  
+        return spif_cache->spif_reload_exec(tensor);  
     }  
 }
 
-// 第一个和第二个算子
-reload_plan_result * sparkInfer_layer_cache:: spif_reload_plan(ggml_tensor * tensor) {
+// Sparkinfer reload plan (算子 1 + 2)
+bool sparkInfer_layer_cache:: spif_reload_plan(ggml_tensor * tensor) {
     // Extraction
-          struct ggml_tensor * gpu_weights     = tensor->src[0];
-          struct ggml_tensor * cpu_weights     = tensor->src[1];
-    const struct ggml_tensor * sparse_idx      = tensor->src[2];  // this is on GPU, copy it back to CPU
-          struct ggml_tensor * gpu_neu_idx     = tensor->src[3];  // might be replaced by directly using spif members
-          struct ggml_tensor * gpu_neu_mask    = tensor->src[4];  // might be replaced by directly using spif members
-          struct ggml_tensor * DFR_score       = tensor->src[5];  // might be replaced by directly using spif members
+    struct ggml_tensor * sparse_idx      = tensor->src[0];
     
     //...
     
     reload_plan_result * rpr = new reload_plan_result();
-    return rpr;
+    return true;
 }
+
+// Sparkinfer reload exec (算子 3)
+bool sparkInfer_layer_cache:: spif_reload_exec(ggml_tensor * tensor) {
+    // ...
+    return true;
+}
+// --------------------------------------------------------- //
