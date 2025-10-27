@@ -1799,12 +1799,57 @@ enum ggml_status ggml_backend_sched_make_parallel_strategy_new(ggml_backend_sche
         ggml_backend_sched_split * split = &sched->splits[i];
         ggml_backend_t backend = ggml_backend_sched_get_backend(sched, split->backend_id);
 
+        // [FFN heterogenious] for CPU split, we link the input[0] and the first node to an event
         if (ggml_backend_dev_type(backend->device) == GGML_BACKEND_DEVICE_TYPE_CPU){
-            // for CPU split, we link the input[0] and the first node to an event
             spif_link_node_to_event(sched, split->inputs[0], split->graph.nodes[0]);
             // printf("split %d on CPU linked event between %s and %s\n", i, split->inputs[0]->name, split->graph.nodes[0]->name);
         }
 
+        // [Reloading dependency] for reload and next ffn computation
+        //      this version if for reload between up-projection and down-projection (hardcoded so much, find a better way to handle this)
+        if (split->graph.nodes[0]->op == GGML_OP_RELOAD_PLAN){
+            ggml_backend_sched_split * next_up_split   = &sched->splits[i+2];
+            ggml_backend_sched_split * next_down_split = &sched->splits[i+4];
+
+            GGML_ASSERT(i+2 < sched->n_splits && "fatal error");
+            GGML_ASSERT(split->graph.n_nodes >= 4 && "fatal error");
+            GGML_ASSERT(next_up_split->graph.nodes[next_up_split->graph.n_nodes -1]->op   == GGML_OP_MUL_MAT_SPARSE && "fatal error");
+            GGML_ASSERT(next_down_split->graph.nodes[next_down_split->graph.n_nodes -1]->op == GGML_OP_AXPY_SPARSE && "fatal error");
+
+
+            // link up-projection tensors
+            // 1. find the reload nodes in current split
+            ggml_tensor * up_reload   = nullptr;
+            ggml_tensor * gate_reload = nullptr;
+            ggml_tensor * down_reload = nullptr;
+            if (strstr(split->graph.nodes[1]->name, "gate")) {    // gated ffn
+                gate_reload = split->graph.nodes[1];
+                up_reload   = split->graph.nodes[2];
+                down_reload = split->graph.nodes[3];
+            }
+            else if (strstr(split->graph.nodes[1]->name, "up")) {  // no gate projection
+                up_reload   = split->graph.nodes[1];
+                down_reload = split->graph.nodes[2];
+            }
+
+            // 2. find the up-projection nodes in next_up_split, usually in the final tow nodes
+            ggml_tensor * up_comp   = nullptr;
+            ggml_tensor * gate_comp = nullptr;
+            if (gate_reload){
+                gate_comp = next_up_split->graph.nodes[next_up_split->graph.n_nodes - 1];
+                up_comp   = next_up_split->graph.nodes[next_up_split->graph.n_nodes - 2];
+            }else{
+                up_comp   = next_up_split->graph.nodes[next_up_split->graph.n_nodes - 1];
+            }
+
+            // 3. find the down-projection nodes in next_down_split, usually in the final one
+            ggml_tensor * down_comp = next_down_split->graph.nodes[next_down_split->graph.n_nodes - 1];
+
+            // 4. link the events
+            if (up_reload && up_comp)     spif_link_node_to_event(sched, up_reload, up_comp);
+            if (gate_reload && gate_comp) spif_link_node_to_event(sched, gate_reload, gate_comp);
+            if (down_reload && down_comp) spif_link_node_to_event(sched, down_reload, down_comp);
+        }   
     }
     return GGML_STATUS_SUCCESS;
 }
