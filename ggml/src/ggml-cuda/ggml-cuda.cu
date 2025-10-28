@@ -63,6 +63,7 @@
 #include <stdlib.h>
 #include <string>
 #include <vector>
+#include <queue>
 
 #define USE_NVTX 0
 
