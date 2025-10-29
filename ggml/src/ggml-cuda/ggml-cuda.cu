@@ -1,6 +1,7 @@
 #include "ggml-cuda.h"
 #include "ggml-impl.h"
 #include "ggml-backend-impl.h"
+#include "ggml-sparkinfer.h"
 
 #include "ggml-cuda/common.cuh"
 #include "ggml-cuda/acc.cuh"
@@ -27,6 +28,8 @@
 #include "ggml-cuda/mmq.cuh"
 #include "ggml-cuda/mmvf.cuh"
 #include "ggml-cuda/mmvq.cuh"
+#include "ggml-cuda/mm-sparse.cuh"
+#include "ggml-cuda/axpy-sparse.cuh"
 #include "ggml-cuda/moe-expert-reduce.cuh"
 #include "ggml-cuda/norm.cuh"
 #include "ggml-cuda/opt-step-adamw.cuh"
@@ -75,6 +78,33 @@
 #include <stdlib.h>
 #include <string>
 #include <vector>
+
+#ifdef USE_NVTX
+#include <nvtx3/nvToolsExt.h>
+
+nvtxRangeId_t nvtx_init(char * name) {
+    char full_name[64];
+    snprintf(full_name, sizeof(full_name), "%s_%s", name, "CUDA");
+
+    nvtxEventAttributes_t eventAttrib = { 0 };
+    eventAttrib.version               = NVTX_VERSION;
+    eventAttrib.size                  = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
+
+    // Set a color for better visibility
+    eventAttrib.colorType = NVTX_COLOR_ARGB;
+    eventAttrib.color     = 0xff00ffa0;  // random color for CUDA
+
+    // Add tensor information as message
+    char message[256];
+    snprintf(message, sizeof(message), "%s ", full_name);
+    message[sizeof(message) - 1] = '\0';
+    eventAttrib.messageType      = NVTX_MESSAGE_TYPE_ASCII;
+    eventAttrib.message.ascii    = message;
+
+    nvtxRangeId_t id = nvtxRangeStartEx(&eventAttrib);
+    return id;
+}
+#endif
 
 static_assert(sizeof(half) == sizeof(ggml_fp16_t), "wrong fp16 size");
 
@@ -2390,6 +2420,41 @@ static void ggml_cuda_mul_mat_id(ggml_backend_cuda_context & ctx, ggml_tensor * 
         nb1, nb2, nb3, stream);
 }
 
+static void ggml_cuda_mul_mat_sparse(ggml_backend_cuda_context & ctx,
+                                     const ggml_tensor *         src0,
+                                     const ggml_tensor *         src1,
+                                     ggml_tensor *               dst) {
+    GGML_ASSERT(dst->src[2] != NULL && "dst->src[2] must be present for sparse matrix multiplication");
+    switch (src0->type) {
+        case GGML_TYPE_F16:
+        case GGML_TYPE_BF16:
+            ggml_cuda_op_mul_mat(ctx, src0, src1, dst, ggml_cuda_op_mul_mat_sparse, nullptr);
+            break;
+        default:
+            GGML_ASSERT(false && "unsupported type for sparse matrix multiplication");
+    }
+}
+
+static void ggml_cuda_axpy_sparse(ggml_backend_cuda_context & ctx,
+                                  const ggml_tensor *         src0,
+                                  const ggml_tensor *         src1,
+                                  ggml_tensor *               dst) {
+    GGML_ASSERT(dst->src[2] != NULL && "dst->src[2] must be present for sparse matrix multiplication");
+    switch (src0->type) {
+        case GGML_TYPE_F16:
+        case GGML_TYPE_BF16:
+            ggml_cuda_op_mul_mat(ctx, src0, src1, dst, ggml_cuda_op_axpy_sparse, nullptr);
+            break;
+        default:
+            GGML_ASSERT(false && "unsupported type for sparse matrix multiplication");
+    }
+}
+
+static void reload_weights(ggml_backend_cuda_context & ctx, ggml_tensor * dst) {
+    auto * obj = reinterpret_cast<ggml_sparkinfer_layer_cache *>(dst->op_params[0]);
+    reload_neurons(obj, &ctx, dst);
+}
+
 static bool ggml_cuda_compute_forward(ggml_backend_cuda_context & ctx, struct ggml_tensor * dst) {
     // why is this here instead of mul_mat?
     if (dst->src[0] != nullptr && ggml_backend_buft_is_cuda_split(dst->src[0]->buffer->buft)) {
@@ -2569,6 +2634,9 @@ static bool ggml_cuda_compute_forward(ggml_backend_cuda_context & ctx, struct gg
         case GGML_OP_LEAKY_RELU:
             ggml_cuda_op_leaky_relu(ctx, dst);
             break;
+        case GGML_OP_FATRELU:
+            ggml_cuda_op_fatrelu(ctx, dst);
+            break;
         case GGML_OP_SILU_BACK:
             ggml_cuda_op_silu_back(ctx, dst);
             break;
@@ -2583,6 +2651,15 @@ static bool ggml_cuda_compute_forward(ggml_backend_cuda_context & ctx, struct gg
             break;
         case GGML_OP_MUL_MAT_ID:
             ggml_cuda_mul_mat_id(ctx, dst);
+            break;
+        case GGML_OP_MUL_MAT_SPARSE:
+            ggml_cuda_mul_mat_sparse(ctx, dst->src[0], dst->src[1], dst);
+            break;
+        case GGML_OP_AXPY_SPARSE:
+            ggml_cuda_axpy_sparse(ctx, dst->src[0], dst->src[1], dst);
+            break;
+        case GGML_OP_RELOAD_WEIGHTS:
+            reload_weights(ctx, dst);
             break;
         case GGML_OP_OUT_PROD:
             ggml_cuda_out_prod(ctx, dst);
@@ -3448,7 +3525,13 @@ static void evaluate_and_capture_cuda_graph(ggml_backend_cuda_context * cuda_ctx
                 GGML_UNUSED(integrated);
 #endif // NDEBUG
 
+#ifdef USE_NVTX
+                nvtxRangeId_t id = nvtx_init(node->name);
                 bool ok = ggml_cuda_compute_forward(*cuda_ctx, node);
+                nvtxRangeEnd(id);
+#else
+                bool ok = ggml_cuda_compute_forward(*cuda_ctx, node);
+#endif
                 if (!ok) {
                     GGML_LOG_ERROR("%s: op not supported %s (%s)\n", __func__, node->name, ggml_op_name(node->op));
                 }
@@ -3805,6 +3888,8 @@ static bool ggml_backend_cuda_device_supports_op(ggml_backend_dev_t dev, const g
             break;
         case GGML_OP_MUL_MAT:
         case GGML_OP_MUL_MAT_ID:
+        case GGML_OP_MUL_MAT_SPARSE:
+        case GGML_OP_AXPY_SPARSE:
             {
                 struct ggml_tensor * a = op->src[0];
                 struct ggml_tensor * b = op->src[1];
@@ -4080,6 +4165,7 @@ static bool ggml_backend_cuda_device_supports_op(ggml_backend_dev_t dev, const g
         case GGML_OP_ARANGE:
         case GGML_OP_TIMESTEP_EMBEDDING:
         case GGML_OP_LEAKY_RELU:
+        case GGML_OP_FATRELU:
         case GGML_OP_RWKV_WKV6:
         case GGML_OP_GATED_LINEAR_ATTN:
         case GGML_OP_RWKV_WKV7:
@@ -4107,6 +4193,8 @@ static int64_t get_op_batch_size(const ggml_tensor * op) {
         case GGML_OP_GET_ROWS:
             return 0;
         case GGML_OP_MUL_MAT:
+        case GGML_OP_MUL_MAT_SPARSE:
+        case GGML_OP_AXPY_SPARSE:
             return op->ne[1];
         case GGML_OP_MUL_MAT_ID:
         case GGML_OP_ROPE:

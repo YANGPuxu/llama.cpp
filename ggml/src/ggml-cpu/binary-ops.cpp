@@ -1,3 +1,4 @@
+#include <csignal>
 #include "binary-ops.h"
 
 #if defined(GGML_USE_ACCELERATE)
@@ -154,5 +155,8 @@ void ggml_compute_forward_mul(const ggml_compute_params * params, ggml_tensor * 
 }
 
 void ggml_compute_forward_div(const ggml_compute_params * params, ggml_tensor * dst) {
+
+    raise(SIGTRAP);
+
     binary_op<op_div>(params, dst);
 }
