@@ -1413,6 +1413,17 @@ static bool ggml_backend_sched_alloc_splits(ggml_backend_sched_t sched) {
     return true;
 }
 
+static int split_debug_enabled(void) {
+    static int cached = -1;
+    if (cached != -1) { return cached; }
+
+    const char * s = getenv("GGML_SPLIT_DEBUG");
+    if (!s || !*s || !strcmp(s, "OFF")) { cached = 0; return cached; }
+
+    cached = 1;
+    return cached;
+}
+
 static enum ggml_status ggml_backend_sched_compute_splits(ggml_backend_sched_t sched) {
     GGML_ASSERT(sched);
     struct ggml_backend_sched_split * splits = sched->splits;
@@ -1425,6 +1436,28 @@ static enum ggml_status ggml_backend_sched_compute_splits(ggml_backend_sched_t s
         struct ggml_backend_sched_split * split = &splits[split_id];
         int split_backend_id = split->backend_id;
         ggml_backend_t split_backend = sched->backends[split_backend_id];
+
+        if (split_debug_enabled()) {
+            printf("\n SPLIT %d: backend: %d %s # %d inputs\n", split_id, split_backend_id, ggml_backend_name(split_backend),
+                   split->n_inputs);
+            for (int input_id = 0; input_id < split->n_inputs; input_id++) {
+                struct ggml_tensor * input = split->inputs[input_id];
+                printf("  input %d: %s (%5.5s)\n", input_id, input->name,
+                       ggml_backend_name(sched->backends[tensor_backend_id(input)]));
+            }
+            for (int node_id = 0; node_id < split->graph.n_nodes; node_id++) {
+                struct ggml_tensor * node = split->graph.nodes[node_id];
+                printf("node %d (%s): %s | ", node_id, ggml_op_name(node->op), node->name);
+                for (int k = 0; k < GGML_MAX_SRC; k++) {
+                    struct ggml_tensor * src = node->src[k];
+                    if (src == NULL) {
+                        continue;
+                    }
+                    printf("src %d: %s, ", k, src->name);
+                }
+                printf("\n");
+            }
+        }
 
         // copy the input tensors to the split backend
         for (int input_id = 0; input_id < split->n_inputs; input_id++) {

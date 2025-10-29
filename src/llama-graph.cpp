@@ -3,11 +3,14 @@
 #include "llama-impl.h"
 #include "llama-batch.h"
 #include "llama-cparams.h"
+#include "llama-model.h"
 
 #include "llama-kv-cache.h"
 #include "llama-kv-cache-iswa.h"
 #include "llama-memory-hybrid.h"
 #include "llama-memory-recurrent.h"
+
+#include "llama-sparkinfer.h"
 
 #include <cassert>
 #include <cmath>
@@ -583,6 +586,7 @@ llm_graph_context::llm_graph_context(const llm_graph_params & params) :
     rope_type        (hparams.rope_type),
     sched            (params.sched),
     backend_cpu      (params.backend_cpu),
+    backend_gpu      (params.backend_gpu),
     cvec             (params.cvec),
     loras            (params.loras),
     mctx             (params.mctx),
@@ -590,7 +594,8 @@ llm_graph_context::llm_graph_context(const llm_graph_params & params) :
     cb_func          (params.cb),
     res              (params.res),
     ctx0             (res->get_ctx()),
-    gf               (res->get_gf()) {
+    gf               (res->get_gf()),
+    spif_cm          (params.spif_cm){
         res->set_params(params);
     }
 
@@ -840,6 +845,190 @@ ggml_tensor * llm_graph_context::build_ffn(
     }
 
     return cur;
+}
+
+
+ggml_tensor * llm_graph_context::build_pred(ggml_tensor * cur,
+                                            ggml_tensor * pred_up,
+                                            ggml_tensor * pred_up_b,
+                                            ggml_tensor * pred_down,
+                                            ggml_tensor * pred_down_b,
+                                            int           il) const {
+    cur = ggml_mul_mat(ctx0, pred_up, cur);
+    cb(cur, "pred_up", il);
+
+    if (pred_up_b) {
+        cur = ggml_add(ctx0, cur, pred_up_b);
+        cb(cur, "pred_up_b", il);
+    }
+
+    cur = ggml_relu(ctx0, cur);
+    cb(cur, "pred_relu", il);
+
+    cur = ggml_mul_mat(ctx0, pred_down, cur);
+    cb(cur, "pred_down", il);
+
+    if (pred_down_b) {
+        cur = ggml_add(ctx0, cur, pred_down_b);
+        cb(cur, "pred_down_b", il);
+    }
+
+    cur = ggml_sigmoid(ctx0, cur);
+    cb(cur, "pred_out", il);
+
+    return cur;
+}
+
+ggml_tensor * llm_graph_context::build_reload(sparkinfer_layer_cache * spif_lc, int il) const {
+    ggml_tensor * cur_reload_up = spif_lc->build_reload_impl(ctx0, "up");
+    cb(cur_reload_up, "ffn_up_reload", il);
+    ggml_backend_sched_set_tensor_backend(sched, cur_reload_up, backend_gpu);
+    ggml_build_forward_expand(gf, cur_reload_up);
+
+    ggml_tensor * cur_reload_gate = nullptr;
+    if (spif_lc->layer_ffn_gate) {
+        cur_reload_gate = spif_lc->build_reload_impl(ctx0, "gate");
+        cb(cur_reload_gate, "ffn_gate_reload", il);
+        ggml_backend_sched_set_tensor_backend(sched, cur_reload_gate, backend_gpu);
+        ggml_build_forward_expand(gf, cur_reload_gate);
+    }
+
+    ggml_tensor * cur_reload_down = spif_lc->build_reload_impl(ctx0, "down");
+    cb(cur_reload_down, "ffn_down_reload", il);
+    ggml_backend_sched_set_tensor_backend(sched, cur_reload_down, backend_gpu);
+    ggml_build_forward_expand(gf, cur_reload_down);
+
+    return nullptr;
+}
+
+ggml_tensor * llm_graph_context::build_sparse_ffn(ggml_tensor * cur, const llama_model * model, int il) const {
+    const auto * layer         = &(model->layers[il]);
+    const auto * next_layer    = (il == n_layer - 1) ? nullptr : &(model->layers[il + 1]);
+    auto *       spif_lc       = spif_cm->layer_caches[il];
+    auto *       next_spif_lc  = (il == n_layer - 1) ? nullptr : spif_cm->layer_caches[il + 1];
+    const auto   gpu_only      = spif_cm->layer_cache_sizes[il] == spif_cm->layer_neuron_count;
+    const auto   next_gpu_only = next_layer && spif_cm->layer_cache_sizes[il + 1] == spif_cm->layer_neuron_count;
+
+    ggml_tensor * sparse_idx = spif_lc->sparse_idx;
+    if (il == 0) {
+        sparse_idx =
+            build_pred(cur, layer->ffn_pred_up, layer->ffn_pred_up_b, layer->ffn_pred_down, layer->ffn_pred_down_b, il);
+    }
+    if (il != n_layer - 1) {
+        ggml_tensor * next_sparse_idx = build_pred(cur, next_layer->ffn_pred_up, next_layer->ffn_pred_up_b,
+                                                   next_layer->ffn_pred_down, next_layer->ffn_pred_down_b, il + 1);
+        next_spif_lc->sparse_idx      = next_sparse_idx;
+        ggml_build_forward_expand(gf, next_sparse_idx);
+    }
+
+    ggml_tensor * up     = layer->ffn_up;
+    ggml_tensor * gate   = layer->ffn_gate;
+    ggml_tensor * down   = layer->ffn_down_t;
+    ggml_tensor * up_b   = layer->ffn_up_b;
+    ggml_tensor * gate_b = layer->ffn_gate_b;
+    ggml_tensor * down_b = layer->ffn_down_b;
+
+    ggml_tensor * gpu_up   = spif_lc->ffn_up_cache;
+    ggml_tensor * gpu_gate = spif_lc->ffn_gate_cache;
+    ggml_tensor * gpu_down = spif_lc->ffn_down_cache;
+
+    ggml_tensor * neuron_idx  = gpu_only ? nullptr : spif_lc->neuron_idx;
+    ggml_tensor * neuron_mask = gpu_only ? nullptr : spif_lc->neuron_mask;
+
+    ggml_tensor * cur_up = ggml_mul_mat_sparse(ctx0, gpu_up, cur, sparse_idx, neuron_idx);
+    cb(cur_up, "ffn_up_sparse_gpu", il);
+    ggml_build_forward_expand(gf, cur_up);
+
+    ggml_tensor * cur_gate = nullptr;
+    if (gate) {
+        cur_gate = ggml_mul_mat_sparse(ctx0, gpu_gate, cur, sparse_idx, neuron_idx);
+        cb(cur_gate, "ffn_gate_sparse_gpu", il);
+        ggml_build_forward_expand(gf, cur_gate);
+    }
+
+    if (!gpu_only) {
+        ggml_tensor * cur_up_cpu = ggml_mul_mat_sparse(ctx0, up, cur, sparse_idx, neuron_mask);
+        cb(cur_up_cpu, "ffn_up_sparse_cpu", il);
+        ggml_build_forward_expand(gf, cur_up_cpu);
+
+        ggml_tensor * cur_gate_cpu = nullptr;
+        if (gate) {
+            cur_gate_cpu = ggml_mul_mat_sparse(ctx0, gate, cur, sparse_idx, neuron_mask);
+            cb(cur_gate_cpu, "ffn_gate_sparse_cpu", il);
+            ggml_build_forward_expand(gf, cur_gate_cpu);
+        }
+
+        cur_up = ggml_add(ctx0, cur_up, cur_up_cpu);
+        cb(cur_up, "ffn_up_sparse_merge", il);
+        ggml_backend_sched_set_tensor_backend(sched, cur_up, backend_gpu);
+
+        if (gate) {
+            cur_gate = ggml_add(ctx0, cur_gate, cur_gate_cpu);
+            cb(cur_gate, "ffn_gate_sparse_merge", il);
+            ggml_backend_sched_set_tensor_backend(sched, cur_gate, backend_gpu);
+        }
+    }
+
+    // TODO: loading neurons
+    if (il != n_layer - 1 && !next_gpu_only) {
+        ggml_tensor * cur_reload = build_reload(next_spif_lc, il + 1);
+    }
+
+    if (up_b) {
+        cur_up = ggml_add(ctx0, cur_up, up_b);
+        cb(cur_up, "ffn_up_b", il);
+    }
+
+    if (gate) {
+        if (gate_b) {
+            cur_gate = ggml_add(ctx0, cur_gate, gate_b);
+            cb(cur_gate, "ffn_gate_b", il);
+        }
+    }
+
+    ggml_tensor * cur_hidden = nullptr;
+
+    switch (model->arch) {
+        case LLM_ARCH_PROSPARSE_LLAMA:
+            {
+                GGML_ASSERT(gate && "FFN_GATE is not found in prosparse-llama");
+                cur_gate = ggml_fatrelu(ctx0, cur_gate, 0.01, false);
+                cb(cur_gate, "ffn_fatrelu", il);
+
+                // if (sparse_idx->ne[1] == 1) {
+                //     ggml_tensor * negdiff = ggml_sub(ctx0, spif_cm->threshold, sparse_idx);
+                //     ggml_tensor * mask    = ggml_sub(ctx0, spif_cm->one, ggml_step(ctx0, negdiff));
+                //     cur_gate              = ggml_mul(ctx0, cur_gate, mask);
+                // }
+
+                cur_hidden = ggml_mul(ctx0, cur_gate, cur_up);
+                cb(cur_hidden, "ffn_gate_par", il);
+            }
+            break;
+        default:
+            GGML_ABORT("Currently build_sparse_ffn does not support this model");
+    }
+
+    ggml_tensor * cur_down = ggml_axpy_sparse(ctx0, gpu_down, cur_hidden, sparse_idx, neuron_idx);
+    cb(cur_down, "ffn_down_sparse_gpu", il);
+    ggml_build_forward_expand(gf, cur_down);
+
+    if (!gpu_only) {
+        ggml_tensor * cur_down_cpu = ggml_axpy_sparse(ctx0, down, cur_hidden, sparse_idx, neuron_mask);
+        cb(cur_down_cpu, "ffn_down_sparse_cpu", il);
+        ggml_build_forward_expand(gf, cur_down_cpu);
+
+        cur_down = ggml_add(ctx0, cur_down, cur_down_cpu);
+        cb(cur_down, "ffn_down_sparse_merge", il);
+        ggml_backend_sched_set_tensor_backend(sched, cur_down, backend_gpu);
+    }
+
+    if (down_b) {
+        cur_down = ggml_add(ctx0, cur_down, down_b);
+        cb(cur_down, "ffn_down_b", il);
+    }
+
+    return cur_down;
 }
 
 ggml_tensor * llm_graph_context::build_moe_ffn(

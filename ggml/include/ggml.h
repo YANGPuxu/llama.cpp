@@ -489,6 +489,10 @@ extern "C" {
 
         GGML_OP_MUL_MAT,
         GGML_OP_MUL_MAT_ID,
+        GGML_OP_MUL_MAT_SPARSE,
+        GGML_OP_AXPY_SPARSE,
+        GGML_OP_RELOAD_WEIGHTS,
+
         GGML_OP_OUT_PROD,
 
         GGML_OP_SCALE,
@@ -529,6 +533,7 @@ extern "C" {
         GGML_OP_TIMESTEP_EMBEDDING,
         GGML_OP_ARGSORT,
         GGML_OP_LEAKY_RELU,
+        GGML_OP_FATRELU,
 
         GGML_OP_FLASH_ATTN_EXT,
         GGML_OP_FLASH_ATTN_BACK,
@@ -1084,6 +1089,10 @@ extern "C" {
             struct ggml_context * ctx,
             struct ggml_tensor  * a, float negative_slope, bool inplace);
 
+    GGML_API struct ggml_tensor * ggml_fatrelu(
+            struct ggml_context * ctx,
+            struct ggml_tensor * a, float threshold, bool inplace);
+
     GGML_API struct ggml_tensor * ggml_relu_inplace(
             struct ggml_context * ctx,
             struct ggml_tensor  * a);
@@ -1359,6 +1368,20 @@ extern "C" {
             struct ggml_context * ctx,
             struct ggml_tensor  * a,
             struct ggml_tensor  * b);
+
+    GGML_API struct ggml_tensor * ggml_mul_mat_sparse(
+            struct ggml_context * ctx,
+            struct ggml_tensor  * a,
+            struct ggml_tensor  * b,
+            struct ggml_tensor  * sparse_idx,
+            struct ggml_tensor  * neu_info);
+
+    GGML_API struct ggml_tensor * ggml_axpy_sparse(
+            struct ggml_context * ctx,
+            struct ggml_tensor  * a,
+            struct ggml_tensor  * b,
+            struct ggml_tensor  * sparse_idx,
+            struct ggml_tensor  * neu_info);
 
     // change the precision of a matrix multiplication
     // set to GGML_PREC_F32 for higher precision (useful for phi-2)

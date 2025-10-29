@@ -85,6 +85,7 @@ struct llama_model_loader {
     gguf_context_ptr meta;
     std::vector<ggml_context_ptr> contexts;
 
+    std::string spif_ms_path;
     std::string arch_name;
     LLM_KV      llm_kv    = LLM_KV(LLM_ARCH_UNKNOWN);
 
@@ -95,10 +96,20 @@ struct llama_model_loader {
     llama_model_loader(
         const std::string & fname,
         std::vector<std::string> & splits, // optional, only need if the split does not follow naming scheme
+        const std::string & spif_ms_path,
         bool use_mmap,
         bool check_tensors,
         const llama_model_kv_override * param_overrides_p,
         const llama_model_tensor_buft_override * param_tensor_buft_overrides_p);
+
+    llama_model_loader(
+        const std::string & fname,
+        std::vector<std::string> & splits, // optional, only need if the split does not follow naming scheme
+        bool use_mmap,
+        bool check_tensors,
+        const llama_model_kv_override * param_overrides_p,
+        const llama_model_tensor_buft_override * param_tensor_buft_overrides_p) :
+    llama_model_loader(fname, splits, "", use_mmap, check_tensors, param_overrides_p, param_tensor_buft_overrides_p) {}
 
     template<typename T>
     typename std::enable_if<std::is_integral<T>::value, bool>::type

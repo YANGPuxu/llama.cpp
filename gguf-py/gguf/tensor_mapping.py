@@ -379,6 +379,13 @@ class TensorNameMap:
             "model.layers.{bid}.feed_forward.expert_bias",                  # lfm2moe
         ),
 
+        MODEL_TENSOR.PRED_UP: (
+            "model.layers.{bid}.pred_up",
+        ),
+        MODEL_TENSOR.PRED_DOWN: (
+            "model.layers.{bid}.pred_down",
+        ),
+
         # Feed-forward up
         MODEL_TENSOR.FFN_UP: (
             "gpt_neox.layers.{bid}.mlp.dense_h_to_4h",                # gptneox
