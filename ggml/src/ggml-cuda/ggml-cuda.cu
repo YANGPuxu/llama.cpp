@@ -2,6 +2,7 @@
 #include "ggml-impl.h"
 #include "ggml-backend-impl.h"
 #include "ggml-sparkinfer.h"
+#include "ggml-spif.h"
 
 #include "ggml-cuda/common.cuh"
 #include "ggml-cuda/acc.cuh"
@@ -2449,9 +2450,52 @@ static void ggml_cuda_axpy_sparse(ggml_backend_cuda_context & ctx,
     }
 }
 
-static void reload_weights(ggml_backend_cuda_context & ctx, ggml_tensor * dst) {
-    auto * obj = reinterpret_cast<ggml_sparkinfer_layer_cache *>(dst->op_params[0]);
-    reload_neurons(obj, &ctx, dst);
+static void ggml_cuda_mul_mat_sparse(ggml_backend_cuda_context & ctx, const ggml_tensor * src0, const ggml_tensor * src1, ggml_tensor * dst) {
+    GGML_ASSERT(dst->src[2] != NULL && "dst->src[2] must be present for sparse matrix multiplication");
+    switch(src0->type) {
+        case GGML_TYPE_F16:
+            ggml_cuda_op_mul_mat(ctx, src0, src1, dst, ggml_cuda_op_mul_mat_sparse, nullptr);
+            break;
+        default:
+            GGML_ASSERT(false && "unsupported type for sparse matrix multiplication");
+        }
+}
+
+static void ggml_cuda_axpy_sparse(ggml_backend_cuda_context & ctx, const ggml_tensor * src0, const ggml_tensor * src1, ggml_tensor * dst) {
+    GGML_ASSERT(dst->src[2] != NULL && "dst->src[2] must be present for sparse matrix multiplication");
+    switch(src0->type) {
+        case GGML_TYPE_F16:
+            ggml_cuda_op_mul_mat(ctx, src0, src1, dst, ggml_cuda_op_axpy_sparse, nullptr);
+            break;
+        default:
+            GGML_ASSERT(false && "unsupported type for sparse matrix multiplication");
+    }
+}
+
+// Sparkinfer RELOAD_PLAN operation (算子 1 + 2)
+static void spif_reload_plan(
+              ggml_backend_cuda_context & ctx,
+              struct ggml_tensor * tensor) 
+{
+    struct ggml_tensor * sparse_idx = tensor->src[0];
+
+    ggml_spif_context * spif_ctx = reinterpret_cast<ggml_spif_context *>(tensor->op_params[0]);
+    GGML_ASSERT(spif_ctx != NULL);
+    
+    bool ok = ggml_spif_reload_plan(spif_ctx, tensor);
+    GGML_ASSERT(ok && "spif_reload_plan failed");
+}
+
+// Sparkinfer RELOAD_EXEC operation (算子 3)
+static void spif_reload_exec(
+              ggml_backend_cuda_context & ctx,
+              struct ggml_tensor * tensor) 
+{
+    ggml_spif_context * spif_ctx = reinterpret_cast<ggml_spif_context *>(tensor->op_params[0]);
+    GGML_ASSERT(spif_ctx != NULL);
+    
+    bool ok = ggml_spif_reload_exec(spif_ctx, tensor, &ctx);
+    GGML_ASSERT(ok && "spif_reload_exec failed");
 }
 
 static bool ggml_cuda_compute_forward(ggml_backend_cuda_context & ctx, struct ggml_tensor * dst) {
@@ -2645,8 +2689,11 @@ static bool ggml_cuda_compute_forward(ggml_backend_cuda_context & ctx, struct gg
         case GGML_OP_AXPY_SPARSE:
             ggml_cuda_axpy_sparse(ctx, dst->src[0], dst->src[1], dst);
             break;
-        case GGML_OP_RELOAD_WEIGHTS:
-            reload_weights(ctx, dst);
+        case GGML_OP_RELOAD_PLAN:
+            spif_reload_plan(ctx, dst);
+            break;
+        case GGML_OP_RELOAD_EXEC:
+            spif_reload_exec(ctx, dst);
             break;
         case GGML_OP_OUT_PROD:
             ggml_cuda_out_prod(ctx, dst);

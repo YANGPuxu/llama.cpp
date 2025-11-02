@@ -20,6 +20,8 @@
 *.so
 *.swp
 *.tmp
+# "bak" for backup files
+*.bak 
 
 # IDE / OS
 
