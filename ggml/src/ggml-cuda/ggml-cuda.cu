@@ -2,6 +2,7 @@
 #include "ggml-impl.h"
 #include "ggml-backend-impl.h"
 #include "ggml-sparkinfer.h"
+#include "ggml-spif.h"
 
 #include "ggml-cuda/common.cuh"
 #include "ggml-cuda/acc.cuh"
@@ -2450,9 +2451,30 @@ static void ggml_cuda_axpy_sparse(ggml_backend_cuda_context & ctx,
     }
 }
 
-static void reload_weights(ggml_backend_cuda_context & ctx, ggml_tensor * dst) {
-    auto * obj = reinterpret_cast<ggml_sparkinfer_layer_cache *>(dst->op_params[0]);
-    reload_neurons(obj, &ctx, dst);
+// Sparkinfer RELOAD_PLAN operation (算子 1 + 2)
+static void spif_reload_plan(
+              ggml_backend_cuda_context & ctx,
+              struct ggml_tensor * tensor) 
+{
+    struct ggml_tensor * sparse_idx = tensor->src[0];
+
+    ggml_spif_context * spif_ctx = reinterpret_cast<ggml_spif_context *>(tensor->op_params[0]);
+    GGML_ASSERT(spif_ctx != NULL);
+    
+    bool ok = ggml_spif_reload_plan(spif_ctx, tensor);
+    GGML_ASSERT(ok && "spif_reload_plan failed");
+}
+
+// Sparkinfer RELOAD_EXEC operation (算子 3)
+static void spif_reload_exec(
+              ggml_backend_cuda_context & ctx,
+              struct ggml_tensor * tensor) 
+{
+    ggml_spif_context * spif_ctx = reinterpret_cast<ggml_spif_context *>(tensor->op_params[0]);
+    GGML_ASSERT(spif_ctx != NULL);
+    
+    bool ok = ggml_spif_reload_exec(spif_ctx, tensor);
+    GGML_ASSERT(ok && "spif_reload_exec failed");
 }
 
 static bool ggml_cuda_compute_forward(ggml_backend_cuda_context & ctx, struct ggml_tensor * dst) {
@@ -2658,8 +2680,11 @@ static bool ggml_cuda_compute_forward(ggml_backend_cuda_context & ctx, struct gg
         case GGML_OP_AXPY_SPARSE:
             ggml_cuda_axpy_sparse(ctx, dst->src[0], dst->src[1], dst);
             break;
-        case GGML_OP_RELOAD_WEIGHTS:
-            reload_weights(ctx, dst);
+        case GGML_OP_RELOAD_PLAN:
+            spif_reload_plan(ctx, dst);
+            break;
+        case GGML_OP_RELOAD_EXEC:
+            spif_reload_exec(ctx, dst);
             break;
         case GGML_OP_OUT_PROD:
             ggml_cuda_out_prod(ctx, dst);
@@ -2810,6 +2835,26 @@ static void ggml_backend_cuda_set_tensor_async(ggml_backend_t backend, ggml_tens
 
     CUDA_CHECK(cudaMemcpyAsync((char *)tensor->data + offset, data, size, cudaMemcpyHostToDevice, cuda_ctx->stream()));
 }
+
+static void ggml_backend_cuda_set_tensor_async_stream(
+    ggml_backend_t backend, 
+    ggml_tensor * tensor, 
+    const void * data, 
+    size_t offset, 
+    size_t size, 
+    int stream_id) {
+
+    ggml_backend_cuda_context * cuda_ctx = (ggml_backend_cuda_context *)backend->context;
+    ggml_backend_buffer_t buf = tensor->view_src ? tensor->view_src->buffer : tensor->buffer;
+
+    GGML_ASSERT(buf->buft == ggml_backend_cuda_buffer_type(cuda_ctx->device) && "unsupported buffer type");
+
+    // Critical change: for SPIF, we need to specify the stream explicitly by
+    // calling cuda_ctx->stream(stream_id) to get an I/O stream,
+    // instead of calling cuda_ctx->stream() which defaults to 0.
+    CUDA_CHECK(cudaMemcpyAsync((char *)tensor->data + offset, data, size, cudaMemcpyHostToDevice, cuda_ctx->stream(cuda_ctx->device, stream_id)));
+}
+
 
 static void ggml_backend_cuda_get_tensor_async(ggml_backend_t backend, const ggml_tensor * tensor, void * data, size_t offset, size_t size) {
     ggml_backend_cuda_context * cuda_ctx = (ggml_backend_cuda_context *)backend->context;
@@ -3679,6 +3724,7 @@ static const ggml_backend_i ggml_backend_cuda_interface = {
     /* .get_name                = */ ggml_backend_cuda_get_name,
     /* .free                    = */ ggml_backend_cuda_free,
     /* .set_tensor_async        = */ ggml_backend_cuda_set_tensor_async,
+    /* .set_tensor_async_stream = */ ggml_backend_cuda_set_tensor_async_stream,   // This iface is only designed for CUDA backend in SparkInfer
     /* .get_tensor_async        = */ ggml_backend_cuda_get_tensor_async,
     /* .cpy_tensor_async        = */ ggml_backend_cuda_cpy_tensor_async,
     /* .synchronize             = */ ggml_backend_cuda_synchronize,

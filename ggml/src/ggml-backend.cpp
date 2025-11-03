@@ -21,6 +21,7 @@
 #include <string.h>
 #include <algorithm>
 #include <vector>
+#include <unordered_map>
 
 #ifdef __APPLE__
 #include <sys/types.h>
@@ -257,6 +258,28 @@ void ggml_backend_tensor_set_async(ggml_backend_t backend, struct ggml_tensor * 
     } else {
         backend->iface.set_tensor_async(backend, tensor, data, offset, size);
     }
+}
+
+void ggml_backend_tensor_set_async_stream(
+        ggml_backend_t backend,
+        struct ggml_tensor * tensor,
+        const void * data,
+        size_t offset,
+        size_t size,
+        int stream_id) {
+
+    GGML_ASSERT(backend);
+    GGML_ASSERT(tensor);
+    GGML_ASSERT(tensor->data != NULL && "tensor not allocated");
+    GGML_ASSERT(offset + size <= ggml_nbytes(tensor) && "tensor write out of bounds");
+
+    if (backend->iface.set_tensor_async_stream == NULL) {
+        ggml_backend_tensor_set_async(backend, tensor, data, offset, size);
+    }else{
+        // SparkInfer: use the stream version
+        backend->iface.set_tensor_async_stream(backend, tensor, data, offset, size, stream_id);
+    }
+
 }
 
 void ggml_backend_tensor_get_async(ggml_backend_t backend, const struct ggml_tensor * tensor, void * data, size_t offset, size_t size) {
@@ -689,6 +712,9 @@ struct ggml_backend_sched {
     struct ggml_hash_set  hash_set;
     int                 * hv_tensor_backend_ids; // [hash_set.size]
     struct ggml_tensor ** hv_tensor_copies;      // [hash_set.size][n_backends][n_copies]
+
+    // hash map of the events in the node used in sparkinfer
+    std::unordered_map<const char *, ggml_backend_event_t> spif_events;
 
     int * node_backend_ids; // [graph_size]
     int * leaf_backend_ids; // [graph_size]
@@ -1424,6 +1450,40 @@ static int split_debug_enabled(void) {
     return cached;
 }
 
+static inline void sparkinfer_append_event_to_tensor_extra(ggml_tensor_extra_sparkinfer * tensor_extra,
+                                                           ggml_backend_event_t           event) {
+    GGML_ASSERT(tensor_extra->event_count < GGML_MAX_SRC);
+    tensor_extra->events[tensor_extra->event_count++] = event;
+}
+
+void ggml_backend_sched_sparkinfer_register_dependency(ggml_backend_sched_t sched,
+                                                       ggml_tensor *        src,
+                                                       ggml_tensor *        dst) {
+#ifdef SPIF_PARALLEL
+    ggml_backend_t src_backend = ggml_backend_sched_get_tensor_backend(sched, src);
+    ggml_backend_t dst_backend = ggml_backend_sched_get_tensor_backend(sched, dst);
+
+    if (sched->spif_events.find(src->name) == sched->spif_events.end()) {
+        sched->spif_events[src->name] = ggml_backend_event_new(src_backend->device);
+    }
+    if (!src->extra) {
+        auto * src_extra = static_cast<ggml_tensor_extra_sparkinfer *>(calloc(1, sizeof(ggml_tensor_extra_sparkinfer)));
+        src_extra->state = RECORD;
+        src->extra       = (void *) src_extra;
+        sparkinfer_append_event_to_tensor_extra(src_extra, sched->spif_events[src->name]);
+    }
+
+    auto * dst_extra = static_cast<ggml_tensor_extra_sparkinfer *>(dst->extra);
+    if (!dst_extra) {
+        dst_extra = static_cast<ggml_tensor_extra_sparkinfer *>(calloc(1, sizeof(ggml_tensor_extra_sparkinfer)));
+        dst_extra->state =
+            ggml_backend_dev_type(dst_backend->device) == GGML_BACKEND_DEVICE_TYPE_CPU ? SYNCHRONIZE : WAIT;
+        dst->extra = (void *) dst_extra;
+    }
+    sparkinfer_append_event_to_tensor_extra(dst_extra, sched->spif_events[src->name]);
+#endif
+}
+
 static enum ggml_status ggml_backend_sched_compute_splits(ggml_backend_sched_t sched) {
     GGML_ASSERT(sched);
     struct ggml_backend_sched_split * splits = sched->splits;
@@ -1464,6 +1524,10 @@ static enum ggml_status ggml_backend_sched_compute_splits(ggml_backend_sched_t s
             ggml_backend_t input_backend = ggml_backend_sched_get_tensor_backend(sched, split->inputs[input_id]);
             struct ggml_tensor * input = split->inputs[input_id];
             struct ggml_tensor * input_cpy = tensor_copy(input, split_backend_id, sched->cur_copy);
+
+            if (strstr(input->name, "cache.weight")) {
+                continue; // TODO: Skip copies of reload ops for now
+            }
 
             if (input->flags & GGML_TENSOR_FLAG_INPUT) {
                 // inputs from the user must be copied immediately to prevent the user overwriting the data before the copy is done

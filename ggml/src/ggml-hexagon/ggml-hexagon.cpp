@@ -3432,7 +3432,8 @@ static void ggml_backend_hexagon_graph_optimize(ggml_backend_t backend, ggml_cgr
 static struct ggml_backend_i hexagon_backend_i = {
     /* .get_name                = */ ggml_backend_hexagon_name,
     /* .free                    = */ ggml_backend_hexagon_free,
-    /* .set_tensor_async        = */ NULL,
+    /* .set_tensor_async        = */ NULL,  // This iface is only designed for CUDA backend in SparkInfer
+    /* .set_tensor_async_stream = */ NULL,
     /* .get_tensor_async        = */ NULL,
     /* .cpy_tensor_async        = */ NULL,
     /* .synchronize             = */ ggml_backend_hexagon_synchronize,

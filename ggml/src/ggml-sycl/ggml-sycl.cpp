@@ -4242,6 +4242,7 @@ static ggml_backend_i ggml_backend_sycl_interface = {
     /* .get_name                = */ ggml_backend_sycl_get_name,
     /* .free                    = */ ggml_backend_sycl_free,
     /* .set_tensor_async        = */ ggml_backend_sycl_set_tensor_async,
+    /* .set_tensor_async_stream = */ NULL, // This iface is only designed for CUDA backend in SparkInfer
     /* .get_tensor_async        = */ ggml_backend_sycl_get_tensor_async,
     /* .cpy_tensor_async        = */ NULL, // ggml_backend_sycl_cpy_tensor_async,
                                            // // TODO: update for the new

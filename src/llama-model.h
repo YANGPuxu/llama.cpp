@@ -264,6 +264,19 @@ struct llama_layer {
     struct ggml_tensor * ffn_pred_up_b   = nullptr;
     struct ggml_tensor * ffn_pred_down_b = nullptr;
 
+    // ffn slice on gpu
+    struct ggml_tensor * ffn_gpu_gate       = nullptr;
+    struct ggml_tensor * ffn_gpu_down_t     = nullptr;
+    struct ggml_tensor * ffn_gpu_up         = nullptr;
+
+    // ffn sparse infernece relevant 
+    struct ggml_tensor * ffn_gpu_neu_idx          = nullptr; // on gpu
+    struct ggml_tensor * ffn_gpu_neu_mask         = nullptr;
+    struct ggml_tensor * ffn_gpu_group_idx        = nullptr; // on gpu
+    struct ggml_tensor * ffn_gpu_group_mask       = nullptr;
+    struct ggml_tensor * ffn_neuron_to_group_map  = nullptr;
+    float gpu_offload_ratio = 0.0f;
+
     // ff
     struct ggml_tensor * ffn_gate     = nullptr; // w1
     struct ggml_tensor * ffn_down     = nullptr; // w2
@@ -426,6 +439,9 @@ struct llama_model {
     llama_vocab   vocab;
 
     // sparkinfer
+    uint64_t layer_neuron_count = 0;
+    uint64_t layer_group_count  = 0;
+    uint64_t layer_group_size   = 0;
     struct sparkinfer_cache_manager * spif_cm        = nullptr;
     bool                              use_sparkinfer = false;
 

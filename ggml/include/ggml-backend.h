@@ -84,6 +84,14 @@ extern "C" {
     GGML_API size_t                     ggml_backend_get_max_size(ggml_backend_t backend);
 
     GGML_API void ggml_backend_tensor_set_async(ggml_backend_t backend,       struct ggml_tensor * tensor, const void * data, size_t offset, size_t size);
+    GGML_API void ggml_backend_tensor_set_async_stream(
+        ggml_backend_t backend,
+        struct ggml_tensor * tensor,
+        const void * data,
+        size_t offset,
+        size_t size,
+        int stream_id
+    );
     GGML_API void ggml_backend_tensor_get_async(ggml_backend_t backend, const struct ggml_tensor * tensor,       void * data, size_t offset, size_t size);
 
     // "offset" refers to the offset in tensor->data for setting/getting data
@@ -338,6 +346,23 @@ extern "C" {
 
     // Set a callback to be called for each resulting node during graph compute
     GGML_API void                 ggml_backend_sched_set_eval_callback(ggml_backend_sched_t sched, ggml_backend_sched_eval_callback callback, void * user_data);
+
+
+    // Sparkinfer: tensor extra to record & wait/sync between graph splits
+    enum sparkinfer_event_state {
+        RECORD      = 0,
+        WAIT        = 1,
+        SYNCHRONIZE = 2,
+    };
+
+    typedef struct ggml_tensor_extra_sparkinfer {
+        enum sparkinfer_event_state state;
+        ggml_backend_event_t        events[GGML_MAX_SRC];
+        int                         event_count;
+    } ggml_tensor_extra_sparkinfer;
+
+    GGML_API void ggml_backend_sched_sparkinfer_register_dependency(ggml_backend_sched_t, struct ggml_tensor *, struct ggml_tensor *);
+
 
     //
     // Utils

@@ -13356,6 +13356,7 @@ static ggml_backend_i ggml_backend_vk_interface = {
     /* .get_name                = */ ggml_backend_vk_name,
     /* .free                    = */ ggml_backend_vk_free,
     /* .set_tensor_async        = */ NULL,  // ggml_backend_vk_set_tensor_async,
+    /* .set_tensor_async_stream = */ NULL,  // This iface is only designed for CUDA backend in SparkInfer
     /* .get_tensor_async        = */ NULL,  // ggml_backend_vk_get_tensor_async,
     /* .cpy_tensor_async        = */ NULL,  // ggml_backend_vk_cpy_tensor_async,
     /* .synchronize             = */ NULL,  // ggml_backend_vk_synchronize,

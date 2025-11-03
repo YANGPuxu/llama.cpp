@@ -2687,6 +2687,7 @@ static const ggml_backend_i ggml_backend_cann_interface = {
     /* .get_name                = */ ggml_backend_cann_name,
     /* .free                    = */ ggml_backend_cann_free,
     /* .set_tensor_async        = */ ggml_backend_cann_set_tensor_async,
+    /* .set_tensor_async_stream = */ NULL,  // This iface is only designed for CUDA backend in SparkInfer
     /* .get_tensor_async        = */ ggml_backend_cann_get_tensor_async,
     /* .cpy_tensor_async        = */ ggml_backend_cann_cpy_tensor_async,
     /* .synchronize             = */ ggml_backend_cann_synchronize,

@@ -17,7 +17,7 @@ else
 fi
 
 if [ "$1" == "release" ]; then
-    cmake --build build --config Release -j --target llama-cli
+    cmake --build build --config Release -j 8 --target llama-cli
 else
-    cmake --build build --config Debug -j --target llama-cli
+    cmake --build build --config Debug -j 8 --target llama-cli
 fi

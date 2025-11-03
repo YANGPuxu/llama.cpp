@@ -953,7 +953,8 @@ static const char * GGML_OP_NAME[GGML_OP_COUNT] = {
 
     "MUL_MAT_SPARSE",
     "AXPY_SPARSE",
-    "RELOAD_WEIGHTS",
+    "RELOAD_PLAN",
+    "RELOAD_EXEC"
 
     "OUT_PROD",
 
@@ -1025,7 +1026,7 @@ static const char * GGML_OP_NAME[GGML_OP_COUNT] = {
     "GLU",
 };
 
-static_assert(GGML_OP_COUNT == 94, "GGML_OP_COUNT != 94");
+static_assert(GGML_OP_COUNT == 95, "GGML_OP_COUNT != 95");
 
 static const char * GGML_OP_SYMBOL[GGML_OP_COUNT] = {
     "none",

@@ -1296,6 +1296,7 @@ static ggml_backend_i ggml_backend_webgpu_i = {
     /* .get_name                = */ ggml_backend_webgpu_name,
     /* .free                    = */ ggml_backend_webgpu_free,
     /* .set_tensor_async        = */ NULL,
+    /* .set_tensor_async_stream = */ NULL,  // This iface is only designed for CUDA backend in SparkInfer
     /* .get_tensor_async        = */ NULL,
     /* .cpy_tensor_async        = */ NULL,
     /* .synchronize             = */ NULL,

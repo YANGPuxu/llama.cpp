@@ -3071,6 +3071,7 @@ static ggml_backend_i ggml_backend_opencl_i = {
     /* .get_name                = */ ggml_backend_opencl_name,
     /* .free                    = */ ggml_backend_opencl_free,
     /* .set_tensor_async        = */ NULL,  /* ggml_backend_opencl_set_tensor_async */
+    /* .set_tensor_async_stream = */ NULL,  // This iface is only designed for CUDA backend in SparkInfer
     /* .get_tensor_async        = */ NULL,  /* ggml_backend_opencl_get_tensor_async */
     /* .cpy_tensor_async        = */ NULL,  /* ggml_backend_opencl_cpy_tensor_async */
     /* .synchronize             = */ ggml_backend_opencl_synchronize,

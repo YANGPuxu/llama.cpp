@@ -492,7 +492,8 @@ extern "C" {
         GGML_OP_MUL_MAT_ID,
         GGML_OP_MUL_MAT_SPARSE,
         GGML_OP_AXPY_SPARSE,
-        GGML_OP_RELOAD_WEIGHTS,
+        GGML_OP_RELOAD_PLAN,
+        GGML_OP_RELOAD_EXEC,
 
         GGML_OP_OUT_PROD,
 

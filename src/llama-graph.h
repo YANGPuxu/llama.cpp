@@ -654,9 +654,10 @@ struct llm_graph_context {
              ggml_tensor * pred_down_b,
                      int   il) const;
 
-    ggml_tensor * build_reload(
+   ggml_tensor * build_reload(
              sparkinfer_layer_cache * spif_lc,
-                                int   il) const;
+                    ggml_tensor * sparse_idx,
+                            int   il) const;
 
     ggml_tensor * build_sparse_ffn(
                    ggml_tensor * cur,
